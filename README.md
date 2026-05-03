@@ -82,6 +82,39 @@ tests/                  # pytest
 - `structlog` — JSON-логи
 - `pytest` + `pytest-asyncio` — тести
 
+## Автозапуск на Windows (локально)
+
+Якщо хочеш, щоб бот стартував автоматично при вході в Windows і працював поки ноут увімкнений:
+
+```powershell
+# Один раз — реєструємо задачу
+powershell -ExecutionPolicy Bypass -File "C:\Users\Gregory Ivd\Desktop\PravoHelpAI\scripts\install_autostart.ps1"
+```
+
+Що це робить:
+- Створює задачу **PravoHelpAI Bot** у Планувальнику Windows.
+- Тригер: при вході користувача в систему.
+- Запускає бот у прихованому вікні, логи пише в `data\bot.log`.
+- Auto-restart при збої (3 спроби з інтервалом 1 хв).
+- Sleep / hibernate ноута → бот спить разом з ним; вмикає → бот сам стартує знову.
+
+Керування після інсталяції:
+```powershell
+# Зупинити вручну
+Stop-ScheduledTask -TaskName "PravoHelpAI Bot"
+
+# Запустити вручну
+Start-ScheduledTask -TaskName "PravoHelpAI Bot"
+
+# Видалити автозапуск
+powershell -ExecutionPolicy Bypass -File "scripts\uninstall_autostart.ps1"
+
+# Подивитись лог у реальному часі
+Get-Content data\bot.log -Wait -Tail 50
+```
+
+Або через GUI: **Win+R** → `taskschd.msc` → знайти **PravoHelpAI Bot**.
+
 ## Деплой через Docker
 
 Готовий `Dockerfile` + `docker-compose.yml` дозволяють запустити бота одною командою на будь-якому Linux-сервері з Docker.

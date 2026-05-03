@@ -88,12 +88,13 @@ async def _error_handler(update: object, context) -> None:
     admin_id = settings.admin_telegram_ids[0]
 
     import traceback as _tb
+    from html import escape
 
     tb_text = "".join(_tb.format_exception(type(err), err, err.__traceback__))[-1500:]
     msg = (
         f"⚠️ <b>Bot exception</b>\n"
-        f"<code>{type(err).__name__}: {str(err)[:200]}</code>\n\n"
-        f"<pre>{tb_text}</pre>"
+        f"<code>{escape(type(err).__name__)}: {escape(str(err)[:200])}</code>\n\n"
+        f"<pre>{escape(tb_text)}</pre>"
     )
     try:
         await context.bot.send_message(chat_id=admin_id, text=msg, parse_mode="HTML")
