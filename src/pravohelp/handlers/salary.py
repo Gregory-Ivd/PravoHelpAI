@@ -61,9 +61,28 @@ class S(IntEnum):
     USER_PHONE = 110
     PLAN_CHOICE = 111
     RESUME_PROMPT = 112
+    PREVIEW = 113
+    EDIT_FIELD_CHOICE = 114
 
 
 SCENARIO = "salary"
+EDITING_KEY = f"{SCENARIO}_editing"
+
+
+# Поля для прев'ю/редагування: (key in data, ярлик, state-куди-повернути для редагування).
+FIELDS = [
+    ("employer_name", "Роботодавець", S.EMPLOYER_NAME),
+    ("employer_edrpou", "ЄДРПОУ", S.EMPLOYER_EDRPOU),
+    ("employer_address", "Адреса роботодавця", S.EMPLOYER_ADDRESS),
+    ("amount", "Сума", S.AMOUNT),
+    ("period_from", "Період з", S.PERIOD_FROM),
+    ("period_to", "Період по", S.PERIOD_TO),
+    ("last_payment_date", "Остання виплата", S.LAST_PAYMENT_DATE),
+    ("user_name", "Твоє ПІБ", S.USER_NAME),
+    ("user_tax_id", "ІПН", S.USER_TAX_ID),
+    ("user_address", "Твоя адреса", S.USER_ADDRESS),
+    ("user_phone", "Телефон", S.USER_PHONE),
+]
 
 
 QUESTIONS: dict[int, str] = {
@@ -156,6 +175,61 @@ def _persist(update: Update, context: ContextTypes.DEFAULT_TYPE, next_state: int
         log.exception("draft_save_failed", state=next_state)
 
 
+async def _advance_or_preview(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, next_state: int
+) -> int:
+    """Якщо це редагування одного поля — повертаємось на прев'ю; інакше — наступний крок."""
+    if context.user_data.pop(EDITING_KEY, None) is not None:
+        _persist(update, context, S.PREVIEW)
+        await _send_preview(update, context)
+        return S.PREVIEW
+
+    _persist(update, context, next_state)
+    if next_state == S.PREVIEW:
+        await _send_preview(update, context)
+    elif next_state in QUESTIONS:
+        await _send_question(update, QUESTIONS[next_state])
+    return next_state
+
+
+def _format_field(key: str, data: dict[str, Any]) -> str:
+    value = data.get(key)
+    if value is None:
+        return "—"
+    if key == "amount":
+        return format_amount_uah(value)
+    if key in ("period_from", "period_to"):
+        return format_month_year(*value)
+    if key == "last_payment_date":
+        return format_date(value)
+    return str(value)
+
+
+async def _send_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    target = update.message
+    if target is None and update.callback_query is not None:
+        target = update.callback_query.message
+    if target is None:
+        return
+
+    data = _data(context)
+    lines = [f"• <b>{label}:</b> {_format_field(key, data)}" for key, label, _ in FIELDS]
+    text = (
+        "<b>📋 Перевір дані перед генерацією</b>\n\n"
+        + "\n".join(lines)
+        + "\n\nЯкщо все правильно — генеруємо документи. "
+        "Знайшов помилку — виправ окреме поле."
+    )
+    keyboard = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("✅ Згенерувати документи", callback_data="preview:confirm")],
+            [InlineKeyboardButton("✏️ Виправити поле", callback_data="preview:edit")],
+            [InlineKeyboardButton("❌ Скасувати", callback_data="preview:cancel")],
+        ]
+    )
+    await target.reply_html(text, reply_markup=keyboard)
+
+
 # ============================================================================
 # Entry point — викликається з callback "scenario:salary"
 # ============================================================================
@@ -210,6 +284,8 @@ async def start_salary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 def _progress_label(state: int) -> str:
     if state == S.PLAN_CHOICE:
         return "усі дані зібрано, треба обрати план"
+    if state == S.PREVIEW:
+        return "усі дані зібрано, потрібен фінальний перегляд"
     order = [
         S.EMPLOYER_NAME,
         S.EMPLOYER_EDRPOU,
@@ -265,20 +341,20 @@ async def on_resume_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     saved_state, saved_data = pending
     context.user_data[SCENARIO] = saved_data
 
+    await query.edit_message_text(f"▶️ Продовжуємо: {_progress_label(saved_state)}.")
+
+    if saved_state == S.PREVIEW:
+        await _send_preview(update, context)
+        return S.PREVIEW
+
     if saved_state == S.PLAN_CHOICE:
-        await query.edit_message_text("▶️ Продовжуємо. Усі дані вже зібрано.")
-        if query.message is not None:
-            # Симулюємо update.message через query.message для _send_plan_choice
-            class _Shim:
-                message = query.message
-            await _send_plan_choice(_Shim(), context)  # type: ignore[arg-type]
+        await _send_plan_choice(update, context)
         return S.PLAN_CHOICE
 
     question = QUESTIONS.get(saved_state)
     if question is None:
         return await _begin_fresh(query, context)
 
-    await query.edit_message_text(f"▶️ Продовжуємо з кроку {_progress_label(saved_state)}.")
     if query.message is not None:
         await query.message.reply_html(question)
     return saved_state
@@ -308,10 +384,7 @@ async def on_employer_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await _send_error(update, e)
         return S.EMPLOYER_NAME
     _data(context)["employer_name"] = value
-    _persist(update, context, S.EMPLOYER_EDRPOU)
-
-    await _send_question(update, QUESTIONS[S.EMPLOYER_EDRPOU])
-    return S.EMPLOYER_EDRPOU
+    return await _advance_or_preview(update, context, S.EMPLOYER_EDRPOU)
 
 
 async def on_employer_edrpou(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -323,10 +396,7 @@ async def on_employer_edrpou(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await _send_error(update, e)
         return S.EMPLOYER_EDRPOU
     _data(context)["employer_edrpou"] = value
-    _persist(update, context, S.EMPLOYER_ADDRESS)
-
-    await _send_question(update, QUESTIONS[S.EMPLOYER_ADDRESS])
-    return S.EMPLOYER_ADDRESS
+    return await _advance_or_preview(update, context, S.EMPLOYER_ADDRESS)
 
 
 async def on_employer_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -338,10 +408,7 @@ async def on_employer_address(update: Update, context: ContextTypes.DEFAULT_TYPE
         await _send_error(update, e)
         return S.EMPLOYER_ADDRESS
     _data(context)["employer_address"] = value
-    _persist(update, context, S.AMOUNT)
-
-    await _send_question(update, QUESTIONS[S.AMOUNT])
-    return S.AMOUNT
+    return await _advance_or_preview(update, context, S.AMOUNT)
 
 
 async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -353,10 +420,7 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await _send_error(update, e)
         return S.AMOUNT
     _data(context)["amount"] = amount
-    _persist(update, context, S.PERIOD_FROM)
-
-    await _send_question(update, QUESTIONS[S.PERIOD_FROM])
-    return S.PERIOD_FROM
+    return await _advance_or_preview(update, context, S.PERIOD_FROM)
 
 
 async def on_period_from(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -368,10 +432,7 @@ async def on_period_from(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await _send_error(update, e)
         return S.PERIOD_FROM
     _data(context)["period_from"] = (month, year)
-    _persist(update, context, S.PERIOD_TO)
-
-    await _send_question(update, QUESTIONS[S.PERIOD_TO])
-    return S.PERIOD_TO
+    return await _advance_or_preview(update, context, S.PERIOD_TO)
 
 
 async def on_period_to(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -392,10 +453,7 @@ async def on_period_to(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         )
         return S.PERIOD_TO
 
-    _persist(update, context, S.LAST_PAYMENT_DATE)
-
-    await _send_question(update, QUESTIONS[S.LAST_PAYMENT_DATE])
-    return S.LAST_PAYMENT_DATE
+    return await _advance_or_preview(update, context, S.LAST_PAYMENT_DATE)
 
 
 async def on_last_payment_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -407,10 +465,7 @@ async def on_last_payment_date(update: Update, context: ContextTypes.DEFAULT_TYP
         await _send_error(update, e)
         return S.LAST_PAYMENT_DATE
     _data(context)["last_payment_date"] = d
-    _persist(update, context, S.USER_NAME)
-
-    await _send_question(update, QUESTIONS[S.USER_NAME])
-    return S.USER_NAME
+    return await _advance_or_preview(update, context, S.USER_NAME)
 
 
 async def on_user_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -422,10 +477,7 @@ async def on_user_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         await _send_error(update, e)
         return S.USER_NAME
     _data(context)["user_name"] = value
-    _persist(update, context, S.USER_TAX_ID)
-
-    await _send_question(update, QUESTIONS[S.USER_TAX_ID])
-    return S.USER_TAX_ID
+    return await _advance_or_preview(update, context, S.USER_TAX_ID)
 
 
 async def on_user_tax_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -437,10 +489,7 @@ async def on_user_tax_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await _send_error(update, e)
         return S.USER_TAX_ID
     _data(context)["user_tax_id"] = value
-    _persist(update, context, S.USER_ADDRESS)
-
-    await _send_question(update, QUESTIONS[S.USER_ADDRESS])
-    return S.USER_ADDRESS
+    return await _advance_or_preview(update, context, S.USER_ADDRESS)
 
 
 async def on_user_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -452,10 +501,7 @@ async def on_user_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await _send_error(update, e)
         return S.USER_ADDRESS
     _data(context)["user_address"] = value
-    _persist(update, context, S.USER_PHONE)
-
-    await _send_question(update, QUESTIONS[S.USER_PHONE])
-    return S.USER_PHONE
+    return await _advance_or_preview(update, context, S.USER_PHONE)
 
 
 async def on_user_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -467,10 +513,7 @@ async def on_user_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         await _send_error(update, e)
         return S.USER_PHONE
     _data(context)["user_phone"] = value
-    _persist(update, context, S.PLAN_CHOICE)
-
-    await _send_plan_choice(update, context)
-    return S.PLAN_CHOICE
+    return await _advance_or_preview(update, context, S.PREVIEW)
 
 
 # ============================================================================
@@ -479,7 +522,10 @@ async def on_user_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 
 async def _send_plan_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message is None:
+    target = update.message
+    if target is None and update.callback_query is not None:
+        target = update.callback_query.message
+    if target is None:
         return
     data = _data(context)
     summary = (
@@ -508,7 +554,76 @@ async def _send_plan_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             [InlineKeyboardButton("📦 Усі три документи", callback_data="salary_plan:all")],
         ]
     )
-    await update.message.reply_html(summary, reply_markup=keyboard)
+    await target.reply_html(summary, reply_markup=keyboard)
+
+
+# ============================================================================
+# Прев'ю + редагування окремого поля
+# ============================================================================
+
+
+async def on_preview_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    if query is None:
+        return ConversationHandler.END
+    await query.answer()
+    await _send_plan_choice(update, context)
+    _persist(update, context, S.PLAN_CHOICE)
+    return S.PLAN_CHOICE
+
+
+async def on_preview_edit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    if query is None or query.message is None:
+        return ConversationHandler.END
+    await query.answer()
+
+    rows = []
+    for key, label, _state in FIELDS:
+        rows.append([InlineKeyboardButton(f"✏️ {label}", callback_data=f"edit_field:{key}")])
+    rows.append([InlineKeyboardButton("⬅️ Назад до прев'ю", callback_data="edit_field:__back__")])
+
+    await query.message.reply_html(
+        "Яке поле виправляємо?", reply_markup=InlineKeyboardMarkup(rows)
+    )
+    return S.EDIT_FIELD_CHOICE
+
+
+async def on_preview_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    if query is None or update.effective_user is None:
+        return ConversationHandler.END
+    await query.answer()
+    delete_draft(update.effective_user.id, SCENARIO)
+    if context.user_data is not None:
+        context.user_data.pop(SCENARIO, None)
+        context.user_data.pop(EDITING_KEY, None)
+    await query.edit_message_text(
+        "Ок, скасовано. Чернетку видалено. Натисни /menu щоб обрати інший сценарій."
+    )
+    return ConversationHandler.END
+
+
+async def on_edit_field(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    if query is None or query.data is None:
+        return S.EDIT_FIELD_CHOICE
+    await query.answer()
+
+    field_key = query.data.split(":", 1)[1]
+
+    if field_key == "__back__":
+        await _send_preview(update, context)
+        return S.PREVIEW
+
+    target_state = next((state for key, _, state in FIELDS if key == field_key), None)
+    if target_state is None or target_state not in QUESTIONS:
+        return S.EDIT_FIELD_CHOICE
+
+    context.user_data[EDITING_KEY] = field_key
+    if query.message is not None:
+        await query.message.reply_html(QUESTIONS[target_state])
+    return target_state
 
 
 def _build_template_context(data: dict[str, Any]) -> dict[str, Any]:
@@ -726,6 +841,14 @@ def build_salary_conversation() -> ConversationHandler:
             S.USER_TAX_ID: [MessageHandler(text_filter, on_user_tax_id)],
             S.USER_ADDRESS: [MessageHandler(text_filter, on_user_address)],
             S.USER_PHONE: [MessageHandler(text_filter, on_user_phone)],
+            S.PREVIEW: [
+                CallbackQueryHandler(on_preview_confirm, pattern=r"^preview:confirm$"),
+                CallbackQueryHandler(on_preview_edit, pattern=r"^preview:edit$"),
+                CallbackQueryHandler(on_preview_cancel, pattern=r"^preview:cancel$"),
+            ],
+            S.EDIT_FIELD_CHOICE: [
+                CallbackQueryHandler(on_edit_field, pattern=r"^edit_field:"),
+            ],
             S.PLAN_CHOICE: [CallbackQueryHandler(on_plan_choice, pattern=r"^salary_plan:")],
         },
         fallbacks=[CommandHandler("cancel", cmd_cancel)],
