@@ -81,3 +81,40 @@ tests/                  # pytest
 - `SQLAlchemy 2` + SQLite
 - `structlog` — JSON-логи
 - `pytest` + `pytest-asyncio` — тести
+
+## Деплой через Docker
+
+Готовий `Dockerfile` + `docker-compose.yml` дозволяють запустити бота одною командою на будь-якому Linux-сервері з Docker.
+
+### Локальний запуск у контейнері
+
+```bash
+# Заповни .env (TELEGRAM_BOT_TOKEN, опціонально LAWYER_*, ADMIN_TELEGRAM_IDS)
+docker compose up --build
+```
+
+База і згенеровані DOCX лежать у `./data/` на хост-системі — переживають перезапуск.
+
+### Деплой на VPS
+
+Передумова: на сервері встановлено Docker + Docker Compose plugin.
+
+```bash
+git clone https://github.com/Gregory-Ivd/PravoHelpAI.git
+cd PravoHelpAI
+cp .env.example .env
+nano .env                              # вписати токен і інші змінні
+docker compose up -d --build           # фоновий запуск
+docker compose logs -f bot             # дивитись логи
+```
+
+### Оновлення після нового коміту
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+### Бекап БД
+
+`./data/pravohelp.db` — звичайний SQLite-файл. Достатньо `cp data/pravohelp.db backups/`.
