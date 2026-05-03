@@ -132,6 +132,15 @@ async def on_about(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def cmd_cancel_global(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Глобальний /cancel — спрацьовує, коли користувач не в ConversationHandler."""
+    if update.message is None:
+        return
+    await update.message.reply_text(
+        "Зараз ти не в сценарії — нема чого скасовувати. Натисни /menu щоб обрати ситуацію."
+    )
+
+
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None:
         return

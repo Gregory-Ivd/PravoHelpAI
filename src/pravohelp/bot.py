@@ -5,7 +5,7 @@ import sys
 import warnings
 
 import structlog
-from telegram import Update
+from telegram import BotCommand, Update
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -24,6 +24,7 @@ from pravohelp.config import load_settings
 from pravohelp.document.generator import cleanup_old_documents
 from pravohelp.handlers.salary import build_salary_conversation
 from pravohelp.handlers.start import (
+    cmd_cancel_global,
     cmd_help,
     cmd_menu,
     cmd_start,
@@ -59,8 +60,20 @@ async def _cleanup_job(_context) -> None:
     cleanup_old_documents()
 
 
+BOT_COMMANDS = [
+    BotCommand("menu", "Головне меню зі сценаріями"),
+    BotCommand("start", "Перший запуск і умови"),
+    BotCommand("help", "Допомога і FAQ"),
+    BotCommand("cancel", "Вийти з поточного сценарію"),
+]
+
+
+async def _post_init(app: Application) -> None:
+    await app.bot.set_my_commands(BOT_COMMANDS)
+
+
 def build_application(token: str) -> Application:
-    app = Application.builder().token(token).build()
+    app = Application.builder().token(token).post_init(_post_init).build()
 
     # ConversationHandler має бути зареєстрований ПЕРЕД одиничними CallbackQueryHandler-ами,
     # щоб entry_point на "scenario:salary" зловив подію раніше за загальний список.
@@ -69,6 +82,9 @@ def build_application(token: str) -> Application:
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("menu", cmd_menu))
     app.add_handler(CommandHandler("help", cmd_help))
+    # Глобальний /cancel — обробляє випадок, коли користувач не в ConversationHandler.
+    # Всередині сценарію fallback з ConversationHandler перехопить /cancel раніше.
+    app.add_handler(CommandHandler("cancel", cmd_cancel_global))
 
     app.add_handler(CallbackQueryHandler(on_disclaimer_accept, pattern=r"^disclaimer:accept$"))
     app.add_handler(CallbackQueryHandler(on_disclaimer_decline, pattern=r"^disclaimer:decline$"))
