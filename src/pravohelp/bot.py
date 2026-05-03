@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import warnings
 
 import structlog
 from telegram import Update
@@ -10,17 +11,29 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
 )
+from telegram.warnings import PTBUserWarning
+
+# Свідоме рішення per_message=False у salary ConversationHandler.
+warnings.filterwarnings(
+    "ignore",
+    message="If 'per_message=False'",
+    category=PTBUserWarning,
+)
 
 from pravohelp.config import load_settings
+from pravohelp.document.generator import cleanup_old_documents
 from pravohelp.handlers.salary import build_salary_conversation
 from pravohelp.handlers.start import (
     cmd_help,
+    cmd_menu,
     cmd_start,
     on_about,
     on_disclaimer_accept,
     on_disclaimer_decline,
 )
 from pravohelp.storage.db import init_db
+
+CLEANUP_INTERVAL_SECONDS = 600
 
 
 def _configure_logging(level: str) -> None:
@@ -42,6 +55,10 @@ def _configure_logging(level: str) -> None:
     )
 
 
+async def _cleanup_job(_context) -> None:
+    cleanup_old_documents()
+
+
 def build_application(token: str) -> Application:
     app = Application.builder().token(token).build()
 
@@ -50,11 +67,17 @@ def build_application(token: str) -> Application:
     app.add_handler(build_salary_conversation())
 
     app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CommandHandler("menu", cmd_menu))
     app.add_handler(CommandHandler("help", cmd_help))
 
     app.add_handler(CallbackQueryHandler(on_disclaimer_accept, pattern=r"^disclaimer:accept$"))
     app.add_handler(CallbackQueryHandler(on_disclaimer_decline, pattern=r"^disclaimer:decline$"))
     app.add_handler(CallbackQueryHandler(on_about, pattern=r"^info:about$"))
+
+    if app.job_queue is not None:
+        app.job_queue.run_repeating(
+            _cleanup_job, interval=CLEANUP_INTERVAL_SECONDS, first=CLEANUP_INTERVAL_SECONDS
+        )
 
     return app
 

@@ -27,6 +27,7 @@ from pravohelp.config import load_settings
 from pravohelp.document.generator import render
 from pravohelp.storage.db import get_session
 from pravohelp.storage.models import ScenarioRequest, User
+from pravohelp.utils.rate_limit import check_and_record
 from pravohelp.utils.validators import (
     ValidationError,
     format_amount_uah,
@@ -100,7 +101,20 @@ async def start_salary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return ConversationHandler.END
     await query.answer()
 
-    if context.user_data is None:
+    if context.user_data is None or update.effective_user is None:
+        return ConversationHandler.END
+
+    settings = load_settings()
+    allowed, retry_after = check_and_record(
+        update.effective_user.id, settings.max_scenarios_per_hour
+    )
+    if not allowed:
+        minutes = max(retry_after // 60, 1)
+        await query.edit_message_text(
+            f"⏳ Ти вже запускав сценарій {settings.max_scenarios_per_hour} разів за останню годину. "
+            f"Спробуй ще раз через ~{minutes} хв.\n\n"
+            "Це обмеження проти спаму — реальним користувачам більше і не треба."
+        )
         return ConversationHandler.END
 
     context.user_data[SCENARIO] = {"started_at": datetime.now(timezone.utc)}
@@ -565,6 +579,9 @@ async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 def build_salary_conversation() -> ConversationHandler:
     text_filter = filters.TEXT & ~filters.COMMAND
 
+    # per_message=False — стани змішують MessageHandler і CallbackQueryHandler,
+    # тому per_message=True використовувати не можна. Явно проставлено, щоб
+    # глушити PTBUserWarning і зафіксувати свідомий вибір.
     return ConversationHandler(
         entry_points=[CallbackQueryHandler(start_salary, pattern=r"^scenario:salary$")],
         states={
@@ -584,4 +601,5 @@ def build_salary_conversation() -> ConversationHandler:
         fallbacks=[CommandHandler("cancel", cmd_cancel)],
         name="salary_scenario",
         persistent=False,
+        per_message=False,
     )

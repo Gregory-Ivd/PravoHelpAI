@@ -69,6 +69,23 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_html(DISCLAIMER, reply_markup=keyboard)
 
 
+async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user is None or update.message is None:
+        return
+
+    with get_session() as session:
+        user = session.query(User).filter_by(telegram_id=update.effective_user.id).one_or_none()
+        accepted = user is not None and user.disclaimer_accepted_at is not None
+
+    if not accepted:
+        await update.message.reply_text(
+            "Спочатку натисни /start і прийми умови — без цього бот не може працювати."
+        )
+        return
+
+    await update.message.reply_html(MAIN_MENU_TEXT, reply_markup=_main_menu_keyboard())
+
+
 async def on_disclaimer_accept(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     if query is None or update.effective_user is None:
@@ -120,12 +137,31 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     await update.message.reply_html(
         "<b>Як користуватись ботом</b>\n\n"
-        "1. /start — обрати ситуацію.\n"
-        "2. Бот ставить уточнюючі питання — відповідай по черзі.\n"
-        "3. У кінці отримаєш готовий документ (DOCX) і чек-лист дій.\n"
-        "4. Опціонально — звернись за консультацією до юриста-партнера.\n\n"
-        "Команди:\n"
-        "/start — головне меню\n"
+        "1. /start — прийняти умови (один раз).\n"
+        "2. /menu — обрати ситуацію.\n"
+        "3. Бот ставить уточнюючі питання — відповідай по черзі.\n"
+        "4. У кінці отримаєш готовий документ (DOCX) і чек-лист дій.\n"
+        "5. Опціонально — звернись за консультацією до юриста-партнера.\n\n"
+        "<b>Команди</b>\n"
+        "/start — перший запуск і дисклеймер\n"
+        "/menu — головне меню зі сценаріями\n"
         "/cancel — вийти з поточного сценарію\n"
-        "/help — це повідомлення"
+        "/help — це повідомлення\n\n"
+        "<b>FAQ</b>\n\n"
+        "<b>Помилився у відповіді — як виправити?</b>\n"
+        "Введи /cancel і запусти сценарій з /menu заново. Покрокового бектреку поки немає.\n\n"
+        "<b>Чи зберігаються мої дані?</b>\n"
+        "У базі бота — лише факт використання (telegram_id, обраний сценарій, дата). "
+        "ПІБ, ІПН, адреса, телефон у базу не пишуться. "
+        "Згенерований DOCX автоматично видаляється з сервера через ~1 годину — "
+        "встигни завантажити.\n\n"
+        "<b>Документ — це готовий папір?</b>\n"
+        "Це шаблон. Перед поданням у держоргани/суд перевір під свою ситуацію — "
+        "або сам, або з юристом. Бот не несе відповідальності за результат.\n\n"
+        "<b>Як отримати консультацію юриста?</b>\n"
+        "Після завершення сценарію бот покаже контакти юриста-партнера. "
+        "Звертатись напряму — умови узгоджуєш з юристом.\n\n"
+        "<b>Чи безпечно вводити персональні дані в Telegram?</b>\n"
+        "Telegram шифрує переписку клієнт-сервер. Бот не передає твої дані третім сторонам. "
+        "Якщо параноя — введи мінімум обовʼязкового і доповни вручну в DOCX."
     )
