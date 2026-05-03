@@ -15,14 +15,20 @@ $action = New-ScheduledTaskAction `
     -Execute "powershell.exe" `
     -Argument ('-ExecutionPolicy Bypass -WindowStyle Hidden -NoProfile -File "{0}"' -f $script)
 
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+# 1) При вході в систему — стартує одразу.
+$triggerLogon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+
+# 2) Heartbeat кожні 5 хв — піднімає бот, якщо помер після sleep/hibernate/краша.
+#    Завдяки -MultipleInstances IgnoreNew повторні запуски пропускаються, поки процес живий.
+$triggerHeartbeat = New-ScheduledTaskTrigger `
+    -Once -At ((Get-Date).AddMinutes(1)) `
+    -RepetitionInterval (New-TimeSpan -Minutes 5)
 
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
     -StartWhenAvailable `
-    -RestartCount 3 `
-    -RestartInterval (New-TimeSpan -Minutes 1) `
+    -MultipleInstances IgnoreNew `
     -ExecutionTimeLimit (New-TimeSpan -Days 365)
 
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive
@@ -30,10 +36,10 @@ $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interac
 Register-ScheduledTask `
     -TaskName $taskName `
     -Action $action `
-    -Trigger $trigger `
+    -Trigger @($triggerLogon, $triggerHeartbeat) `
     -Settings $settings `
     -Principal $principal `
-    -Description "PravoHelpAI Telegram bot — автозапуск при вході в Windows" `
+    -Description "PravoHelpAI Telegram bot — автозапуск при вході в Windows + heartbeat кожні 5 хв" `
     -Force | Out-Null
 
 Write-Host ""
