@@ -5,7 +5,7 @@ import sys
 import warnings
 
 import structlog
-from telegram import BotCommand, Update
+from telegram import BotCommand, BotCommandScopeChat, Update
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -81,9 +81,22 @@ BOT_COMMANDS = [
     BotCommand("cancel", "Вийти з поточного сценарію"),
 ]
 
+ADMIN_BOT_COMMANDS = BOT_COMMANDS + [
+    BotCommand("stats", "📊 Статистика бота (адмін)"),
+]
+
 
 async def _post_init(app: Application) -> None:
     await app.bot.set_my_commands(BOT_COMMANDS)
+    for admin_id in load_settings().admin_telegram_ids:
+        try:
+            await app.bot.set_my_commands(
+                ADMIN_BOT_COMMANDS, scope=BotCommandScopeChat(chat_id=admin_id)
+            )
+        except Exception:
+            structlog.get_logger(__name__).exception(
+                "admin_commands_set_failed", admin_id=admin_id
+            )
 
 
 def build_application(token: str) -> Application:
