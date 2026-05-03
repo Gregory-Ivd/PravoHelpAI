@@ -62,6 +62,17 @@ async def _cleanup_job(_context) -> None:
     cleanup_old_drafts()
 
 
+async def _error_handler(update: object, context) -> None:
+    log = structlog.get_logger(__name__)
+    log.error(
+        "unhandled_exception",
+        error=str(context.error),
+        error_type=type(context.error).__name__,
+        update=str(update)[:500] if update else None,
+        exc_info=context.error,
+    )
+
+
 BOT_COMMANDS = [
     BotCommand("menu", "Головне меню зі сценаріями"),
     BotCommand("start", "Перший запуск і умови"),
@@ -96,6 +107,8 @@ def build_application(token: str) -> Application:
         app.job_queue.run_repeating(
             _cleanup_job, interval=CLEANUP_INTERVAL_SECONDS, first=CLEANUP_INTERVAL_SECONDS
         )
+
+    app.add_error_handler(_error_handler)
 
     return app
 
