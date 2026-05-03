@@ -26,6 +26,7 @@ from telegram.ext import (
 from pravohelp.config import load_settings
 from pravohelp.document.generator import render
 from pravohelp.storage.db import get_session
+from pravohelp.storage.drafts import delete_draft, load_draft, save_draft
 from pravohelp.storage.models import ScenarioRequest, User
 from pravohelp.utils.rate_limit import check_and_record
 from pravohelp.utils.validators import (
@@ -59,9 +60,64 @@ class S(IntEnum):
     USER_ADDRESS = 109
     USER_PHONE = 110
     PLAN_CHOICE = 111
+    RESUME_PROMPT = 112
 
 
 SCENARIO = "salary"
+
+
+QUESTIONS: dict[int, str] = {
+    S.EMPLOYER_NAME: (
+        "<b>1/11.</b> Як називається організація-роботодавець?\n\n"
+        "Введи точну назву так, як вона у трудовому договорі. "
+        "Наприклад: <i>ТОВ «Промінь»</i> або <i>ФОП Іваненко Іван Іванович</i>."
+    ),
+    S.EMPLOYER_EDRPOU: (
+        "<b>2/11.</b> ЄДРПОУ роботодавця (8 цифр).\n\n"
+        "Знайдеш у трудовому договорі або на сайті <a href='https://usr.minjust.gov.ua/'>"
+        "Єдиного держреєстру</a>.\n\n"
+        "Якщо не знаєш — напиши <b>не знаю</b>."
+    ),
+    S.EMPLOYER_ADDRESS: (
+        "<b>3/11.</b> Юридична адреса роботодавця.\n\n"
+        "Як вона у договорі або в ЄДР. Наприклад: "
+        "<i>04050, м. Київ, вул. Січових Стрільців, 50, оф. 12</i>."
+    ),
+    S.AMOUNT: (
+        "<b>4/11.</b> Сума заборгованості (у гривнях).\n\n"
+        "Вкажи число — наприклад <code>15000</code> або <code>23500.50</code>."
+    ),
+    S.PERIOD_FROM: (
+        "<b>5/11.</b> З якого місяця почалась заборгованість?\n\n"
+        "Формат: <code>ММ.РРРР</code>. Наприклад: <code>01.2026</code> (січень 2026)."
+    ),
+    S.PERIOD_TO: (
+        "<b>6/11.</b> По який місяць триває заборгованість?\n\n"
+        "Формат: <code>ММ.РРРР</code>. Якщо лише один місяць — повтори той самий, "
+        "що в попередньому питанні."
+    ),
+    S.LAST_PAYMENT_DATE: (
+        "<b>7/11.</b> Дата останньої виплати зарплати.\n\n"
+        "Формат: <code>ДД.ММ.РРРР</code>. Наприклад: <code>15.12.2025</code>.\n"
+        "Якщо ніколи не отримував — введи дату початку роботи."
+    ),
+    S.USER_NAME: (
+        "<b>8/11.</b> Твоє ПІБ повністю.\n\n"
+        "Як у паспорті. Наприклад: <i>Іваненко Олександр Сергійович</i>."
+    ),
+    S.USER_TAX_ID: (
+        "<b>9/11.</b> Твій ІПН (РНОКПП) — 10 цифр.\n\nБез пробілів і дефісів."
+    ),
+    S.USER_ADDRESS: (
+        "<b>10/11.</b> Твоя адреса для листування.\n\n"
+        "Куди має прийти відповідь. Наприклад: "
+        "<i>03150, м. Київ, вул. Велика Васильківська, 100, кв. 25</i>."
+    ),
+    S.USER_PHONE: (
+        "<b>11/11.</b> Твій телефон.\n\n"
+        "У форматі <code>+380XXXXXXXXX</code> або <code>0XXXXXXXXX</code>."
+    ),
+}
 
 
 # ============================================================================
@@ -88,6 +144,16 @@ async def _send_error(update: Update, error: ValidationError) -> None:
     if update.message is None:
         return
     await update.message.reply_text(f"⚠️ {error}\n\nСпробуй ще раз або /cancel щоб вийти.")
+
+
+def _persist(update: Update, context: ContextTypes.DEFAULT_TYPE, next_state: int) -> None:
+    """Зберегти прогрес чернетки. Викликати ПІСЛЯ оновлення _data(context)."""
+    if update.effective_user is None:
+        return
+    try:
+        save_draft(update.effective_user.id, SCENARIO, next_state, _data(context))
+    except Exception:
+        log.exception("draft_save_failed", state=next_state)
 
 
 # ============================================================================
@@ -117,7 +183,57 @@ async def start_salary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         )
         return ConversationHandler.END
 
+    draft = load_draft(update.effective_user.id, SCENARIO)
+    if draft is not None:
+        saved_state, saved_data = draft
+        progress = _progress_label(saved_state)
+        keyboard = InlineKeyboardMarkup(
+            [
+                [InlineKeyboardButton("▶️ Продовжити", callback_data="salary_resume:yes")],
+                [InlineKeyboardButton("🔄 Почати наново", callback_data="salary_resume:no")],
+            ]
+        )
+        await query.edit_message_text(
+            "<b>💰 Невиплата зарплати</b>\n\n"
+            f"У тебе вже є незавершена чернетка ({progress}). "
+            "Що робимо?",
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
+        # Тимчасово зберігаємо чернетку в context для resume-handler-а
+        context.user_data[f"{SCENARIO}_pending_resume"] = (saved_state, saved_data)
+        return S.RESUME_PROMPT
+
+    return await _begin_fresh(query, context)
+
+
+def _progress_label(state: int) -> str:
+    if state == S.PLAN_CHOICE:
+        return "усі дані зібрано, треба обрати план"
+    order = [
+        S.EMPLOYER_NAME,
+        S.EMPLOYER_EDRPOU,
+        S.EMPLOYER_ADDRESS,
+        S.AMOUNT,
+        S.PERIOD_FROM,
+        S.PERIOD_TO,
+        S.LAST_PAYMENT_DATE,
+        S.USER_NAME,
+        S.USER_TAX_ID,
+        S.USER_ADDRESS,
+        S.USER_PHONE,
+    ]
+    try:
+        idx = order.index(state)
+    except ValueError:
+        return "невідомий етап"
+    return f"крок {idx + 1}/11"
+
+
+async def _begin_fresh(query, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Початок з нуля. query — callback_query від кнопки entry або 'почати наново'."""
     context.user_data[SCENARIO] = {"started_at": datetime.now(timezone.utc)}
+    context.user_data.pop(f"{SCENARIO}_pending_resume", None)
 
     await query.edit_message_text(
         "<b>💰 Невиплата зарплати</b>\n\n"
@@ -131,12 +247,51 @@ async def start_salary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     if query.message is None:
         return ConversationHandler.END
 
-    await query.message.reply_html(
-        "<b>1/11.</b> Як називається організація-роботодавець?\n\n"
-        "Введи точну назву так, як вона у трудовому договорі. "
-        "Наприклад: <i>ТОВ «Промінь»</i> або <i>ФОП Іваненко Іван Іванович</i>."
-    )
+    await query.message.reply_html(QUESTIONS[S.EMPLOYER_NAME])
     return S.EMPLOYER_NAME
+
+
+async def on_resume_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    if query is None or context.user_data is None:
+        return ConversationHandler.END
+    await query.answer()
+
+    pending = context.user_data.pop(f"{SCENARIO}_pending_resume", None)
+    if pending is None:
+        # Чернетки нема (видалили в іншому місці) — починаємо з нуля.
+        return await _begin_fresh(query, context)
+
+    saved_state, saved_data = pending
+    context.user_data[SCENARIO] = saved_data
+
+    if saved_state == S.PLAN_CHOICE:
+        await query.edit_message_text("▶️ Продовжуємо. Усі дані вже зібрано.")
+        if query.message is not None:
+            # Симулюємо update.message через query.message для _send_plan_choice
+            class _Shim:
+                message = query.message
+            await _send_plan_choice(_Shim(), context)  # type: ignore[arg-type]
+        return S.PLAN_CHOICE
+
+    question = QUESTIONS.get(saved_state)
+    if question is None:
+        return await _begin_fresh(query, context)
+
+    await query.edit_message_text(f"▶️ Продовжуємо з кроку {_progress_label(saved_state)}.")
+    if query.message is not None:
+        await query.message.reply_html(question)
+    return saved_state
+
+
+async def on_resume_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    if query is None or context.user_data is None or update.effective_user is None:
+        return ConversationHandler.END
+    await query.answer()
+
+    delete_draft(update.effective_user.id, SCENARIO)
+    return await _begin_fresh(query, context)
 
 
 # ============================================================================
@@ -153,14 +308,9 @@ async def on_employer_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await _send_error(update, e)
         return S.EMPLOYER_NAME
     _data(context)["employer_name"] = value
+    _persist(update, context, S.EMPLOYER_EDRPOU)
 
-    await _send_question(
-        update,
-        "<b>2/11.</b> ЄДРПОУ роботодавця (8 цифр).\n\n"
-        "Знайдеш у трудовому договорі або на сайті <a href='https://usr.minjust.gov.ua/'>"
-        "Єдиного держреєстру</a>.\n\n"
-        "Якщо не знаєш — напиши <b>не знаю</b>.",
-    )
+    await _send_question(update, QUESTIONS[S.EMPLOYER_EDRPOU])
     return S.EMPLOYER_EDRPOU
 
 
@@ -173,12 +323,9 @@ async def on_employer_edrpou(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await _send_error(update, e)
         return S.EMPLOYER_EDRPOU
     _data(context)["employer_edrpou"] = value
+    _persist(update, context, S.EMPLOYER_ADDRESS)
 
-    await _send_question(
-        update,
-        "<b>3/11.</b> Юридична адреса роботодавця.\n\n"
-        "Як вона у договорі або в ЄДР. Наприклад: <i>04050, м. Київ, вул. Січових Стрільців, 50, оф. 12</i>.",
-    )
+    await _send_question(update, QUESTIONS[S.EMPLOYER_ADDRESS])
     return S.EMPLOYER_ADDRESS
 
 
@@ -191,12 +338,9 @@ async def on_employer_address(update: Update, context: ContextTypes.DEFAULT_TYPE
         await _send_error(update, e)
         return S.EMPLOYER_ADDRESS
     _data(context)["employer_address"] = value
+    _persist(update, context, S.AMOUNT)
 
-    await _send_question(
-        update,
-        "<b>4/11.</b> Сума заборгованості (у гривнях).\n\n"
-        "Вкажи число — наприклад <code>15000</code> або <code>23500.50</code>.",
-    )
+    await _send_question(update, QUESTIONS[S.AMOUNT])
     return S.AMOUNT
 
 
@@ -209,12 +353,9 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await _send_error(update, e)
         return S.AMOUNT
     _data(context)["amount"] = amount
+    _persist(update, context, S.PERIOD_FROM)
 
-    await _send_question(
-        update,
-        "<b>5/11.</b> З якого місяця почалась заборгованість?\n\n"
-        "Формат: <code>ММ.РРРР</code>. Наприклад: <code>01.2026</code> (січень 2026).",
-    )
+    await _send_question(update, QUESTIONS[S.PERIOD_FROM])
     return S.PERIOD_FROM
 
 
@@ -227,12 +368,9 @@ async def on_period_from(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await _send_error(update, e)
         return S.PERIOD_FROM
     _data(context)["period_from"] = (month, year)
+    _persist(update, context, S.PERIOD_TO)
 
-    await _send_question(
-        update,
-        "<b>6/11.</b> По який місяць триває заборгованість?\n\n"
-        "Формат: <code>ММ.РРРР</code>. Якщо лише один місяць — повтори той самий, що в попередньому питанні.",
-    )
+    await _send_question(update, QUESTIONS[S.PERIOD_TO])
     return S.PERIOD_TO
 
 
@@ -254,12 +392,9 @@ async def on_period_to(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         )
         return S.PERIOD_TO
 
-    await _send_question(
-        update,
-        "<b>7/11.</b> Дата останньої виплати зарплати.\n\n"
-        "Формат: <code>ДД.ММ.РРРР</code>. Наприклад: <code>15.12.2025</code>.\n"
-        "Якщо ніколи не отримував — введи дату початку роботи.",
-    )
+    _persist(update, context, S.LAST_PAYMENT_DATE)
+
+    await _send_question(update, QUESTIONS[S.LAST_PAYMENT_DATE])
     return S.LAST_PAYMENT_DATE
 
 
@@ -272,12 +407,9 @@ async def on_last_payment_date(update: Update, context: ContextTypes.DEFAULT_TYP
         await _send_error(update, e)
         return S.LAST_PAYMENT_DATE
     _data(context)["last_payment_date"] = d
+    _persist(update, context, S.USER_NAME)
 
-    await _send_question(
-        update,
-        "<b>8/11.</b> Твоє ПІБ повністю.\n\n"
-        "Як у паспорті. Наприклад: <i>Іваненко Олександр Сергійович</i>.",
-    )
+    await _send_question(update, QUESTIONS[S.USER_NAME])
     return S.USER_NAME
 
 
@@ -290,12 +422,9 @@ async def on_user_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         await _send_error(update, e)
         return S.USER_NAME
     _data(context)["user_name"] = value
+    _persist(update, context, S.USER_TAX_ID)
 
-    await _send_question(
-        update,
-        "<b>9/11.</b> Твій ІПН (РНОКПП) — 10 цифр.\n\n"
-        "Без пробілів і дефісів.",
-    )
+    await _send_question(update, QUESTIONS[S.USER_TAX_ID])
     return S.USER_TAX_ID
 
 
@@ -308,13 +437,9 @@ async def on_user_tax_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await _send_error(update, e)
         return S.USER_TAX_ID
     _data(context)["user_tax_id"] = value
+    _persist(update, context, S.USER_ADDRESS)
 
-    await _send_question(
-        update,
-        "<b>10/11.</b> Твоя адреса для листування.\n\n"
-        "Куди має прийти відповідь. Наприклад: "
-        "<i>03150, м. Київ, вул. Велика Васильківська, 100, кв. 25</i>.",
-    )
+    await _send_question(update, QUESTIONS[S.USER_ADDRESS])
     return S.USER_ADDRESS
 
 
@@ -327,12 +452,9 @@ async def on_user_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await _send_error(update, e)
         return S.USER_ADDRESS
     _data(context)["user_address"] = value
+    _persist(update, context, S.USER_PHONE)
 
-    await _send_question(
-        update,
-        "<b>11/11.</b> Твій телефон.\n\n"
-        "У форматі <code>+380XXXXXXXXX</code> або <code>0XXXXXXXXX</code>.",
-    )
+    await _send_question(update, QUESTIONS[S.USER_PHONE])
     return S.USER_PHONE
 
 
@@ -345,6 +467,7 @@ async def on_user_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         await _send_error(update, e)
         return S.USER_PHONE
     _data(context)["user_phone"] = value
+    _persist(update, context, S.PLAN_CHOICE)
 
     await _send_plan_choice(update, context)
     return S.PLAN_CHOICE
@@ -502,6 +625,7 @@ async def on_plan_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await _send_lawyer_offer(update, context)
     _record_completion(update, plan=plan, docs_count=docs_count)
 
+    delete_draft(update.effective_user.id, SCENARIO)
     context.user_data.pop(SCENARIO, None)
     return ConversationHandler.END
 
@@ -564,9 +688,11 @@ def _record_completion(update: Update, *, plan: str, docs_count: int) -> None:
 async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data is not None:
         context.user_data.pop(SCENARIO, None)
+    if update.effective_user is not None:
+        delete_draft(update.effective_user.id, SCENARIO)
     if update.message is not None:
         await update.message.reply_text(
-            "Ок, вийшли зі сценарію. Натисни /start щоб обрати інший."
+            "Ок, вийшли зі сценарію. Чернетку видалено. Натисни /menu щоб обрати інший."
         )
     return ConversationHandler.END
 
@@ -585,6 +711,10 @@ def build_salary_conversation() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[CallbackQueryHandler(start_salary, pattern=r"^scenario:salary$")],
         states={
+            S.RESUME_PROMPT: [
+                CallbackQueryHandler(on_resume_yes, pattern=r"^salary_resume:yes$"),
+                CallbackQueryHandler(on_resume_no, pattern=r"^salary_resume:no$"),
+            ],
             S.EMPLOYER_NAME: [MessageHandler(text_filter, on_employer_name)],
             S.EMPLOYER_EDRPOU: [MessageHandler(text_filter, on_employer_edrpou)],
             S.EMPLOYER_ADDRESS: [MessageHandler(text_filter, on_employer_address)],

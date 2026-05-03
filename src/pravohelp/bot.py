@@ -23,6 +23,7 @@ warnings.filterwarnings(
 from pravohelp.config import load_settings
 from pravohelp.document.generator import cleanup_old_documents
 from pravohelp.handlers.salary import build_salary_conversation
+from pravohelp.storage.drafts import cleanup_old_drafts
 from pravohelp.handlers.start import (
     cmd_cancel_global,
     cmd_help,
@@ -58,6 +59,7 @@ def _configure_logging(level: str) -> None:
 
 async def _cleanup_job(_context) -> None:
     cleanup_old_documents()
+    cleanup_old_drafts()
 
 
 BOT_COMMANDS = [

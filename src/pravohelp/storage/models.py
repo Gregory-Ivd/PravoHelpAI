@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -46,3 +46,19 @@ class ScenarioRequest(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="requests")
+
+
+class ScenarioDraft(Base):
+    """Чернетка незавершеного сценарію — містить PII, TTL 24 год."""
+
+    __tablename__ = "scenario_drafts"
+    __table_args__ = (UniqueConstraint("telegram_id", "scenario", name="uq_draft_user_scenario"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(index=True)
+    scenario: Mapped[str] = mapped_column(String(32))
+    state: Mapped[int] = mapped_column(Integer)
+    data_json: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
