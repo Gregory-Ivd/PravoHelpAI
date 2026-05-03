@@ -22,8 +22,8 @@ warnings.filterwarnings(
 
 from pravohelp.config import load_settings
 from pravohelp.document.generator import cleanup_old_documents
+from pravohelp.handlers.admin import cmd_stats
 from pravohelp.handlers.salary import build_salary_conversation
-from pravohelp.storage.drafts import cleanup_old_drafts
 from pravohelp.handlers.start import (
     cmd_cancel_global,
     cmd_help,
@@ -34,6 +34,7 @@ from pravohelp.handlers.start import (
     on_disclaimer_decline,
 )
 from pravohelp.storage.db import init_db
+from pravohelp.storage.drafts import cleanup_old_drafts
 
 CLEANUP_INTERVAL_SECONDS = 600
 
@@ -98,6 +99,7 @@ def build_application(token: str) -> Application:
     # Глобальний /cancel — обробляє випадок, коли користувач не в ConversationHandler.
     # Всередині сценарію fallback з ConversationHandler перехопить /cancel раніше.
     app.add_handler(CommandHandler("cancel", cmd_cancel_global))
+    app.add_handler(CommandHandler("stats", cmd_stats))
 
     app.add_handler(CallbackQueryHandler(on_disclaimer_accept, pattern=r"^disclaimer:accept$"))
     app.add_handler(CallbackQueryHandler(on_disclaimer_decline, pattern=r"^disclaimer:decline$"))
