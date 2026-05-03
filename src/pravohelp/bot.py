@@ -12,6 +12,7 @@ from telegram.ext import (
 )
 
 from pravohelp.config import load_settings
+from pravohelp.handlers.salary import build_salary_conversation
 from pravohelp.handlers.start import (
     cmd_help,
     cmd_start,
@@ -43,6 +44,10 @@ def _configure_logging(level: str) -> None:
 
 def build_application(token: str) -> Application:
     app = Application.builder().token(token).build()
+
+    # ConversationHandler має бути зареєстрований ПЕРЕД одиничними CallbackQueryHandler-ами,
+    # щоб entry_point на "scenario:salary" зловив подію раніше за загальний список.
+    app.add_handler(build_salary_conversation())
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
