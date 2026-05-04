@@ -24,6 +24,7 @@ from pravohelp.config import load_settings
 from pravohelp.document.generator import cleanup_old_documents
 from pravohelp.handlers.admin import cmd_stats
 from pravohelp.handlers.consultation import build_consultation_conversation
+from pravohelp.handlers.history import cmd_history
 from pravohelp.handlers.salary import (
     build_salary_conversation,
     on_post_edit_hint,
@@ -113,6 +114,7 @@ async def _error_handler(update: object, context) -> None:
 BOT_COMMANDS = [
     BotCommand("menu", "Головне меню зі сценаріями"),
     BotCommand("start", "Перший запуск і умови"),
+    BotCommand("history", "Мої минулі запити"),
     BotCommand("help", "Допомога і FAQ"),
     BotCommand("cancel", "Вийти з поточного сценарію"),
 ]
@@ -148,6 +150,7 @@ def build_application(token: str) -> Application:
     # Глобальний /cancel — обробляє випадок, коли користувач не в ConversationHandler.
     # Всередині сценарію fallback з ConversationHandler перехопить /cancel раніше.
     app.add_handler(CommandHandler("cancel", cmd_cancel_global))
+    app.add_handler(CommandHandler("history", cmd_history))
     app.add_handler(CommandHandler("stats", cmd_stats))
 
     app.add_handler(CallbackQueryHandler(on_disclaimer_accept, pattern=r"^disclaimer:accept$"))

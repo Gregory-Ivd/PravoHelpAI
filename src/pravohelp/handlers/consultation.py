@@ -30,6 +30,7 @@ from telegram.ext import (
 from pravohelp.config import load_settings
 from pravohelp.storage.db import get_session
 from pravohelp.storage.models import ConsultationRequest
+from pravohelp.utils.funnel import emit as funnel_emit
 from pravohelp.utils.validators import (
     ValidationError,
     validate_phone,
@@ -88,6 +89,9 @@ async def start_consultation(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     context.user_data[CONSULT_KEY] = {"field": field, "started_at": datetime.now(UTC)}
 
+    if update.effective_user is not None:
+        funnel_emit("consult_started", telegram_id=update.effective_user.id, field=field)
+
     label = FIELD_LABELS[field]
     if query.message is not None:
         await query.message.reply_html(
@@ -116,6 +120,8 @@ async def on_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await update.message.reply_text(f"⚠️ {e}\n\nСпробуй ще раз або /cancel.")
         return C.NAME
     _data(context)["name"] = value
+    if update.effective_user is not None:
+        funnel_emit("consult_step", telegram_id=update.effective_user.id, field="name")
 
     await update.message.reply_html(
         "<b>2/3.</b> Ваш телефон.\n"
@@ -133,6 +139,8 @@ async def on_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await update.message.reply_text(f"⚠️ {e}\n\nСпробуй ще раз або /cancel.")
         return C.PHONE
     _data(context)["phone"] = value
+    if update.effective_user is not None:
+        funnel_emit("consult_step", telegram_id=update.effective_user.id, field="phone")
 
     await update.message.reply_html(
         "<b>3/3.</b> Коротко опишіть вашу ситуацію — у чому суть і що потрібно.\n\n"
@@ -151,6 +159,8 @@ async def on_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return C.DESCRIPTION
     data = _data(context)
     data["description"] = value
+    if update.effective_user is not None:
+        funnel_emit("consult_step", telegram_id=update.effective_user.id, field="description")
 
     summary = (
         "<b>📋 Перевір заявку перед відправкою</b>\n\n"
@@ -240,6 +250,14 @@ async def on_confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         await query.message.reply_html(text, reply_markup=keyboard)
 
+    funnel_emit(
+        "consult_submitted",
+        telegram_id=user_id,
+        field=data["field"],
+        dispatched=dispatched,
+        request_id=request_id,
+    )
+
     context.user_data.pop(CONSULT_KEY, None)
     return ConversationHandler.END
 
@@ -249,6 +267,10 @@ async def on_confirm_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if query is None:
         return ConversationHandler.END
     await query.answer()
+    if update.effective_user is not None:
+        funnel_emit(
+            "consult_cancelled", telegram_id=update.effective_user.id, source="confirm"
+        )
     if context.user_data is not None:
         context.user_data.pop(CONSULT_KEY, None)
     if query.message is not None:
@@ -259,6 +281,10 @@ async def on_confirm_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 
 async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.effective_user is not None:
+        funnel_emit(
+            "consult_cancelled", telegram_id=update.effective_user.id, source="cmd_cancel"
+        )
     if context.user_data is not None:
         context.user_data.pop(CONSULT_KEY, None)
     if update.message is not None:

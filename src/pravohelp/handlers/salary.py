@@ -27,6 +27,7 @@ from pravohelp.document.generator import render
 from pravohelp.storage.db import get_session
 from pravohelp.storage.drafts import delete_draft, load_draft, save_draft
 from pravohelp.storage.models import ScenarioRequest, User
+from pravohelp.utils.funnel import emit as funnel_emit
 from pravohelp.utils.rate_limit import check_and_record
 from pravohelp.utils.validators import (
     ValidationError,
@@ -176,16 +177,30 @@ def _persist(update: Update, context: ContextTypes.DEFAULT_TYPE, next_state: int
 
 
 async def _advance_or_preview(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, next_state: int
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    next_state: int,
+    *,
+    completed_field: str | None = None,
 ) -> int:
     """Якщо це редагування одного поля — повертаємось на прев'ю; інакше — наступний крок."""
-    if context.user_data.pop(EDITING_KEY, None) is not None:
+    tg_id = update.effective_user.id if update.effective_user else None
+    editing = context.user_data.pop(EDITING_KEY, None)
+
+    if completed_field is not None and tg_id is not None:
+        funnel_emit(
+            "salary_step", telegram_id=tg_id, field=completed_field, editing=editing is not None
+        )
+
+    if editing is not None:
         _persist(update, context, S.PREVIEW)
+        funnel_emit("salary_preview_shown", telegram_id=tg_id, source="edit")
         await _send_preview(update, context)
         return S.PREVIEW
 
     _persist(update, context, next_state)
     if next_state == S.PREVIEW:
+        funnel_emit("salary_preview_shown", telegram_id=tg_id, source="flow")
         await _send_preview(update, context)
     elif next_state in QUESTIONS:
         await _send_question(update, QUESTIONS[next_state])
@@ -256,6 +271,8 @@ async def start_salary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
             "Це обмеження проти спаму — реальним користувачам більше і не треба."
         )
         return ConversationHandler.END
+
+    funnel_emit("salary_started", telegram_id=update.effective_user.id)
 
     draft = load_draft(update.effective_user.id, SCENARIO)
     if draft is not None:
@@ -341,6 +358,8 @@ async def on_resume_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     saved_state, saved_data = pending
     context.user_data[SCENARIO] = saved_data
 
+    if update.effective_user is not None:
+        funnel_emit("salary_resumed", telegram_id=update.effective_user.id, state=int(saved_state))
     await query.edit_message_text(f"▶️ Продовжуємо: {_progress_label(saved_state)}.")
 
     if saved_state == S.PREVIEW:
@@ -367,6 +386,7 @@ async def on_resume_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     await query.answer()
 
     delete_draft(update.effective_user.id, SCENARIO)
+    funnel_emit("salary_restarted", telegram_id=update.effective_user.id)
     return await _begin_fresh(query, context)
 
 
@@ -384,7 +404,7 @@ async def on_employer_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await _send_error(update, e)
         return S.EMPLOYER_NAME
     _data(context)["employer_name"] = value
-    return await _advance_or_preview(update, context, S.EMPLOYER_EDRPOU)
+    return await _advance_or_preview(update, context, S.EMPLOYER_EDRPOU, completed_field="employer_name")
 
 
 async def on_employer_edrpou(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -396,7 +416,7 @@ async def on_employer_edrpou(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await _send_error(update, e)
         return S.EMPLOYER_EDRPOU
     _data(context)["employer_edrpou"] = value
-    return await _advance_or_preview(update, context, S.EMPLOYER_ADDRESS)
+    return await _advance_or_preview(update, context, S.EMPLOYER_ADDRESS, completed_field="employer_edrpou")
 
 
 async def on_employer_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -408,7 +428,7 @@ async def on_employer_address(update: Update, context: ContextTypes.DEFAULT_TYPE
         await _send_error(update, e)
         return S.EMPLOYER_ADDRESS
     _data(context)["employer_address"] = value
-    return await _advance_or_preview(update, context, S.AMOUNT)
+    return await _advance_or_preview(update, context, S.AMOUNT, completed_field="employer_address")
 
 
 async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -420,7 +440,7 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await _send_error(update, e)
         return S.AMOUNT
     _data(context)["amount"] = amount
-    return await _advance_or_preview(update, context, S.PERIOD_FROM)
+    return await _advance_or_preview(update, context, S.PERIOD_FROM, completed_field="amount")
 
 
 async def on_period_from(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -432,7 +452,7 @@ async def on_period_from(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await _send_error(update, e)
         return S.PERIOD_FROM
     _data(context)["period_from"] = (month, year)
-    return await _advance_or_preview(update, context, S.PERIOD_TO)
+    return await _advance_or_preview(update, context, S.PERIOD_TO, completed_field="period_from")
 
 
 async def on_period_to(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -453,7 +473,7 @@ async def on_period_to(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         )
         return S.PERIOD_TO
 
-    return await _advance_or_preview(update, context, S.LAST_PAYMENT_DATE)
+    return await _advance_or_preview(update, context, S.LAST_PAYMENT_DATE, completed_field="period_to")
 
 
 async def on_last_payment_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -465,7 +485,7 @@ async def on_last_payment_date(update: Update, context: ContextTypes.DEFAULT_TYP
         await _send_error(update, e)
         return S.LAST_PAYMENT_DATE
     _data(context)["last_payment_date"] = d
-    return await _advance_or_preview(update, context, S.USER_NAME)
+    return await _advance_or_preview(update, context, S.USER_NAME, completed_field="last_payment_date")
 
 
 async def on_user_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -477,7 +497,7 @@ async def on_user_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         await _send_error(update, e)
         return S.USER_NAME
     _data(context)["user_name"] = value
-    return await _advance_or_preview(update, context, S.USER_TAX_ID)
+    return await _advance_or_preview(update, context, S.USER_TAX_ID, completed_field="user_name")
 
 
 async def on_user_tax_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -489,7 +509,7 @@ async def on_user_tax_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await _send_error(update, e)
         return S.USER_TAX_ID
     _data(context)["user_tax_id"] = value
-    return await _advance_or_preview(update, context, S.USER_ADDRESS)
+    return await _advance_or_preview(update, context, S.USER_ADDRESS, completed_field="user_tax_id")
 
 
 async def on_user_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -501,7 +521,7 @@ async def on_user_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await _send_error(update, e)
         return S.USER_ADDRESS
     _data(context)["user_address"] = value
-    return await _advance_or_preview(update, context, S.USER_PHONE)
+    return await _advance_or_preview(update, context, S.USER_PHONE, completed_field="user_address")
 
 
 async def on_user_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -513,7 +533,7 @@ async def on_user_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         await _send_error(update, e)
         return S.USER_PHONE
     _data(context)["user_phone"] = value
-    return await _advance_or_preview(update, context, S.PREVIEW)
+    return await _advance_or_preview(update, context, S.PREVIEW, completed_field="user_phone")
 
 
 # ============================================================================
@@ -568,6 +588,9 @@ async def on_preview_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return ConversationHandler.END
     await query.answer()
 
+    if update.effective_user is not None:
+        funnel_emit("salary_preview_confirmed", telegram_id=update.effective_user.id)
+
     text = (
         "⚠️ <b>Важливо:</b> у подібних справах можуть виникати нюанси, які впливають "
         "на результат (позиція другої сторони, докази, виконання рішення суду тощо).\n\n"
@@ -589,6 +612,8 @@ async def on_pregen_template(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if query is None:
         return ConversationHandler.END
     await query.answer()
+    if update.effective_user is not None:
+        funnel_emit("salary_pregen_template", telegram_id=update.effective_user.id)
     await _send_plan_choice(update, context)
     _persist(update, context, S.PLAN_CHOICE)
     return S.PLAN_CHOICE
@@ -600,6 +625,8 @@ async def on_pregen_lawyer(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if query is None or update.effective_user is None:
         return ConversationHandler.END
     await query.answer()
+
+    funnel_emit("salary_pregen_lawyer", telegram_id=update.effective_user.id)
 
     # Чистимо salary state — більше не повертаємось до зарплати, юзер обрав консультацію.
     if context.user_data is not None:
@@ -647,6 +674,7 @@ async def on_preview_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if query is None or update.effective_user is None:
         return ConversationHandler.END
     await query.answer()
+    funnel_emit("salary_cancelled", telegram_id=update.effective_user.id, source="preview")
     delete_draft(update.effective_user.id, SCENARIO)
     if context.user_data is not None:
         context.user_data.pop(SCENARIO, None)
@@ -752,6 +780,8 @@ async def on_plan_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if plan not in PLAN_TEMPLATES:
         return ConversationHandler.END
 
+    funnel_emit("salary_plan_chosen", telegram_id=update.effective_user.id, plan=plan)
+
     data = _data(context)
     tpl_context = _build_template_context(data)
 
@@ -792,6 +822,12 @@ async def on_plan_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     await _send_post_generation_card(update, context)
     _record_completion(update, plan=plan, docs_count=docs_count)
+    funnel_emit(
+        "salary_completed",
+        telegram_id=update.effective_user.id,
+        plan=plan,
+        docs_count=docs_count,
+    )
 
     delete_draft(update.effective_user.id, SCENARIO)
     context.user_data.pop(SCENARIO, None)
@@ -878,6 +914,9 @@ async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data is not None:
         context.user_data.pop(SCENARIO, None)
     if update.effective_user is not None:
+        funnel_emit(
+            "salary_cancelled", telegram_id=update.effective_user.id, source="cmd_cancel"
+        )
         delete_draft(update.effective_user.id, SCENARIO)
     if update.message is not None:
         await update.message.reply_text(

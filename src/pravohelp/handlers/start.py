@@ -8,6 +8,7 @@ from telegram.ext import ContextTypes
 
 from pravohelp.storage.db import get_session
 from pravohelp.storage.models import User
+from pravohelp.utils.funnel import emit as funnel_emit
 
 log = structlog.get_logger(__name__)
 
@@ -239,6 +240,7 @@ async def on_disclaimer_accept(update: Update, context: ContextTypes.DEFAULT_TYP
         if user is not None:
             user.disclaimer_accepted_at = datetime.now(UTC)
 
+    funnel_emit("disclaimer_accepted", telegram_id=update.effective_user.id)
     await query.edit_message_text(
         MAIN_MENU_TEXT, parse_mode="HTML", reply_markup=main_menu_keyboard()
     )
@@ -249,6 +251,8 @@ async def on_disclaimer_decline(update: Update, context: ContextTypes.DEFAULT_TY
     if query is None:
         return
     await query.answer()
+    if update.effective_user is not None:
+        funnel_emit("disclaimer_declined", telegram_id=update.effective_user.id)
     await query.edit_message_text(
         "Зрозуміло. Без згоди з умовами бот не може продовжити.\n"
         "Якщо передумаєш — натисни /start ще раз."
@@ -348,6 +352,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "<b>Команди</b>\n"
         "/start — перший запуск і дисклеймер\n"
         "/menu — головне меню\n"
+        "/history — мої минулі запити (без PII)\n"
         "/cancel — вийти з поточного сценарію\n"
         "/help — це повідомлення\n\n"
         "<b>FAQ</b>\n\n"
