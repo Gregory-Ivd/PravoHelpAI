@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v1 -->
+<!-- v2 -->
 <html lang="uk">
 <head>
   <meta charset="UTF-8" />
@@ -12,6 +12,8 @@
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="uk_UA" />
 
+  <meta name="theme-color" content="#0f172a" />
+
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E⚖️%3C/text%3E%3C/svg%3E" />
 
   <script src="https://cdn.tailwindcss.com"></script>
@@ -21,7 +23,7 @@
         extend: {
           colors: {
             ua: {
-              blue: '#0057B7',
+              blue: '#3B82F6',
               yellow: '#FFD700',
             },
           },
@@ -34,162 +36,163 @@
   </script>
 </head>
 
-<body class="bg-slate-50 text-slate-900 antialiased">
+<body class="bg-slate-950 text-slate-100 antialiased text-lg leading-relaxed">
 
   <!-- Top accent bar -->
   <div class="h-1 bg-gradient-to-r from-ua-blue via-ua-blue to-ua-yellow"></div>
 
   <!-- Header -->
-  <header class="border-b border-slate-200 bg-white">
-    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <span class="text-2xl">⚖️</span>
-        <span class="font-bold text-lg tracking-tight">PravoHelpAI</span>
+  <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur sticky top-0 z-10">
+    <div class="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-3xl">⚖️</span>
+        <span class="font-bold text-xl tracking-tight text-white">PravoHelpAI</span>
       </div>
-      <nav class="hidden sm:flex gap-6 text-sm text-slate-600">
-        <a href="#scenarios" class="hover:text-ua-blue">Сценарії</a>
-        <a href="#how" class="hover:text-ua-blue">Як працює</a>
-        <a href="#lawyer" class="hover:text-ua-blue">Юрист</a>
-        <a href="#disclaimer" class="hover:text-ua-blue">Умови</a>
+      <nav class="hidden sm:flex gap-7 text-base text-slate-300">
+        <a href="#scenarios" class="hover:text-ua-blue transition">Сценарії</a>
+        <a href="#how" class="hover:text-ua-blue transition">Як працює</a>
+        <a href="#lawyer" class="hover:text-ua-blue transition">Юрист</a>
+        <a href="#disclaimer" class="hover:text-ua-blue transition">Умови</a>
       </nav>
     </div>
   </header>
 
   <!-- Hero -->
-  <section class="bg-white">
-    <div class="max-w-5xl mx-auto px-6 py-16 sm:py-24 text-center">
-      <h1 class="text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 leading-tight">
+  <section class="bg-slate-950 relative overflow-hidden">
+    <div class="absolute inset-0 bg-gradient-to-b from-ua-blue/10 via-transparent to-transparent pointer-events-none"></div>
+    <div class="max-w-5xl mx-auto px-6 py-20 sm:py-32 text-center relative">
+      <h1 class="text-5xl sm:text-7xl font-bold tracking-tight text-white leading-[1.1]">
         Юридичні документи —<br />
         <span class="text-ua-blue">за 3 хвилини в Telegram</span>
       </h1>
-      <p class="mt-6 text-lg text-slate-600 max-w-2xl mx-auto">
+      <p class="mt-8 text-xl sm:text-2xl text-slate-300 max-w-3xl mx-auto leading-relaxed">
         PravoHelpAI — безкоштовний бот, який заповнює шаблони документів за тебе.
-        Відповідаєш на короткі питання — отримуєш готовий <strong>.docx</strong> і чек-лист
+        Відповідаєш на короткі питання — отримуєш готовий <strong class="text-white">.docx</strong> і чек-лист
         дій. Без юридичного жаргону, без LLM-галюцинацій.
       </p>
 
-      <div class="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
+      <div class="mt-12 flex flex-col sm:flex-row gap-4 justify-center">
         <a href="https://t.me/Dmytro_pravohelp_bot"
-           class="inline-flex items-center justify-center gap-2 px-8 py-3 rounded-lg bg-ua-blue text-white font-semibold hover:bg-blue-700 transition shadow-md">
+           class="inline-flex items-center justify-center gap-2 px-10 py-4 rounded-xl bg-ua-blue text-white text-lg font-semibold hover:bg-blue-600 transition shadow-lg shadow-blue-900/40">
           📱 Відкрити в Telegram
         </a>
         <a href="#how"
-           class="inline-flex items-center justify-center gap-2 px-8 py-3 rounded-lg bg-white border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition">
+           class="inline-flex items-center justify-center gap-2 px-10 py-4 rounded-xl bg-slate-800 border border-slate-700 text-slate-100 text-lg font-semibold hover:bg-slate-700 transition">
           Як це працює →
         </a>
       </div>
 
-      <p class="mt-6 text-sm text-slate-500">
+      <p class="mt-8 text-base text-slate-400">
         Перевірено практикуючим юристом · Без реклами · Дані не передаються третім особам
       </p>
     </div>
   </section>
 
   <!-- Сценарії -->
-  <section id="scenarios" class="py-20 bg-slate-50">
+  <section id="scenarios" class="py-24 bg-slate-900 border-y border-slate-800">
     <div class="max-w-5xl mx-auto px-6">
-      <h2 class="text-3xl font-bold text-center text-slate-900">Які документи бот генерує</h2>
-      <p class="mt-3 text-center text-slate-600 max-w-2xl mx-auto">
+      <h2 class="text-4xl sm:text-5xl font-bold text-center text-white">Які документи бот генерує</h2>
+      <p class="mt-4 text-xl text-center text-slate-300 max-w-3xl mx-auto">
         Розширюємо перелік сценаріїв на основі реальних запитів користувачів і затверджених юристом шаблонів.
       </p>
 
-      <div class="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
 
         <!-- Active: salary -->
-        <div class="bg-white rounded-xl p-6 border border-ua-blue/20 shadow-sm relative">
-          <span class="absolute top-4 right-4 text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-700">Доступно</span>
-          <div class="text-3xl">💰</div>
-          <h3 class="mt-3 font-bold text-lg">Невиплата зарплати</h3>
-          <p class="mt-2 text-sm text-slate-600">
+        <div class="bg-slate-800 rounded-2xl p-7 border border-ua-blue/40 shadow-lg shadow-blue-900/20 relative">
+          <span class="absolute top-5 right-5 text-xs font-bold uppercase tracking-wider px-2 py-1 rounded bg-green-500/20 text-green-300 border border-green-500/30">Доступно</span>
+          <div class="text-4xl">💰</div>
+          <h3 class="mt-4 font-bold text-2xl text-white">Невиплата зарплати</h3>
+          <p class="mt-3 text-base text-slate-300 leading-relaxed">
             Претензія роботодавцю, скарга до Держпраці, позовна заява до суду.
             Усі три документи за один прохід анкети.
           </p>
-          <p class="mt-3 text-xs text-slate-500">КЗпП ст. 115–117</p>
+          <p class="mt-4 text-sm text-slate-500">КЗпП ст. 115–117</p>
         </div>
 
         <!-- Coming: military -->
-        <div class="bg-white rounded-xl p-6 border border-slate-200 shadow-sm relative opacity-90">
-          <span class="absolute top-4 right-4 text-xs font-semibold px-2 py-1 rounded bg-amber-100 text-amber-700">Скоро</span>
-          <div class="text-3xl">🪖</div>
-          <h3 class="mt-3 font-bold text-lg">Повістка / мобілізація</h3>
-          <p class="mt-2 text-sm text-slate-600">
+        <div class="bg-slate-800/60 rounded-2xl p-7 border border-slate-700 relative">
+          <span class="absolute top-5 right-5 text-xs font-bold uppercase tracking-wider px-2 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">Скоро</span>
+          <div class="text-4xl">🪖</div>
+          <h3 class="mt-4 font-bold text-2xl text-white">Повістка / мобілізація</h3>
+          <p class="mt-3 text-base text-slate-300 leading-relaxed">
             Шаблони звернень у типових ситуаціях: оскарження повістки, відстрочка,
             бронювання. Чекаємо на затверджені юристом шаблони.
           </p>
         </div>
 
         <!-- Coming: traffic fines -->
-        <div class="bg-white rounded-xl p-6 border border-slate-200 shadow-sm relative opacity-90">
-          <span class="absolute top-4 right-4 text-xs font-semibold px-2 py-1 rounded bg-amber-100 text-amber-700">Скоро</span>
-          <div class="text-3xl">🚗</div>
-          <h3 class="mt-3 font-bold text-lg">Штрафи ПДР</h3>
-          <p class="mt-2 text-sm text-slate-600">
+        <div class="bg-slate-800/60 rounded-2xl p-7 border border-slate-700 relative">
+          <span class="absolute top-5 right-5 text-xs font-bold uppercase tracking-wider px-2 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">Скоро</span>
+          <div class="text-4xl">🚗</div>
+          <h3 class="mt-4 font-bold text-2xl text-white">Штрафи ПДР</h3>
+          <p class="mt-3 text-base text-slate-300 leading-relaxed">
             Оскарження постанов про адміністративні правопорушення у сфері дорожнього руху.
           </p>
         </div>
 
       </div>
 
-      <p class="mt-8 text-center text-sm text-slate-500">
+      <p class="mt-10 text-center text-base text-slate-400">
         Не знайшов своєї ситуації? У боті є меню «Консультація юриста» — 9 галузей права.
       </p>
     </div>
   </section>
 
   <!-- Як працює -->
-  <section id="how" class="py-20 bg-white">
+  <section id="how" class="py-24 bg-slate-950">
     <div class="max-w-5xl mx-auto px-6">
-      <h2 class="text-3xl font-bold text-center text-slate-900">Як працює</h2>
+      <h2 class="text-4xl sm:text-5xl font-bold text-center text-white">Як працює</h2>
 
-      <ol class="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <ol class="mt-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
         <li class="text-center">
-          <div class="mx-auto w-12 h-12 rounded-full bg-ua-blue text-white font-bold text-lg flex items-center justify-center">1</div>
-          <h3 class="mt-4 font-semibold">Відкриваєш бот</h3>
-          <p class="mt-2 text-sm text-slate-600">У Telegram, без реєстрації. Приймаєш умови — один раз.</p>
+          <div class="mx-auto w-14 h-14 rounded-full bg-ua-blue text-white font-bold text-xl flex items-center justify-center shadow-lg shadow-blue-900/40">1</div>
+          <h3 class="mt-5 font-bold text-xl text-white">Відкриваєш бот</h3>
+          <p class="mt-2 text-base text-slate-300">У Telegram, без реєстрації. Приймаєш умови — один раз.</p>
         </li>
         <li class="text-center">
-          <div class="mx-auto w-12 h-12 rounded-full bg-ua-blue text-white font-bold text-lg flex items-center justify-center">2</div>
-          <h3 class="mt-4 font-semibold">Обираєш сценарій</h3>
-          <p class="mt-2 text-sm text-slate-600">«Скласти документ» → тип ситуації. Бот веде по короткій анкеті.</p>
+          <div class="mx-auto w-14 h-14 rounded-full bg-ua-blue text-white font-bold text-xl flex items-center justify-center shadow-lg shadow-blue-900/40">2</div>
+          <h3 class="mt-5 font-bold text-xl text-white">Обираєш сценарій</h3>
+          <p class="mt-2 text-base text-slate-300">«Скласти документ» → тип ситуації. Бот веде по короткій анкеті.</p>
         </li>
         <li class="text-center">
-          <div class="mx-auto w-12 h-12 rounded-full bg-ua-blue text-white font-bold text-lg flex items-center justify-center">3</div>
-          <h3 class="mt-4 font-semibold">Перевіряєш дані</h3>
-          <p class="mt-2 text-sm text-slate-600">Прев'ю всіх полів. Можна виправити будь-яке без перезапуску.</p>
+          <div class="mx-auto w-14 h-14 rounded-full bg-ua-blue text-white font-bold text-xl flex items-center justify-center shadow-lg shadow-blue-900/40">3</div>
+          <h3 class="mt-5 font-bold text-xl text-white">Перевіряєш дані</h3>
+          <p class="mt-2 text-base text-slate-300">Прев'ю всіх полів. Можна виправити будь-яке без перезапуску.</p>
         </li>
         <li class="text-center">
-          <div class="mx-auto w-12 h-12 rounded-full bg-ua-blue text-white font-bold text-lg flex items-center justify-center">4</div>
-          <h3 class="mt-4 font-semibold">Отримуєш .docx + чек-лист</h3>
-          <p class="mt-2 text-sm text-slate-600">Готовий документ і покрокова інструкція, що з ним робити.</p>
+          <div class="mx-auto w-14 h-14 rounded-full bg-ua-blue text-white font-bold text-xl flex items-center justify-center shadow-lg shadow-blue-900/40">4</div>
+          <h3 class="mt-5 font-bold text-xl text-white">Отримуєш .docx</h3>
+          <p class="mt-2 text-base text-slate-300">Готовий документ і покрокова інструкція, що з ним робити.</p>
         </li>
       </ol>
 
-      <p class="mt-12 text-center text-slate-600">
+      <p class="mt-14 text-center text-lg text-slate-300">
         Якщо ситуація складна — у боті можна записатись на консультацію до юриста-партнера.
       </p>
     </div>
   </section>
 
   <!-- Юрист-партнер -->
-  <section id="lawyer" class="py-20 bg-slate-50">
+  <section id="lawyer" class="py-24 bg-slate-900 border-y border-slate-800">
     <div class="max-w-3xl mx-auto px-6">
-      <h2 class="text-3xl font-bold text-center text-slate-900">Юрист-партнер</h2>
+      <h2 class="text-4xl sm:text-5xl font-bold text-center text-white">Юрист-партнер</h2>
 
-      <div class="mt-12 bg-white rounded-2xl p-8 shadow-sm border border-slate-200">
-        <div class="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
-          <div class="w-24 h-24 rounded-full bg-ua-blue text-white flex items-center justify-center text-3xl font-bold shrink-0">
+      <div class="mt-14 bg-slate-800 rounded-2xl p-8 sm:p-10 shadow-xl border border-slate-700">
+        <div class="flex flex-col sm:flex-row gap-7 items-center sm:items-start">
+          <div class="w-28 h-28 rounded-full bg-ua-blue text-white flex items-center justify-center text-4xl font-bold shrink-0 shadow-lg shadow-blue-900/40">
             ДГ
           </div>
           <div class="text-center sm:text-left">
-            <h3 class="text-xl font-bold">Дмитро Глушко</h3>
-            <p class="text-slate-600 mt-1">Практикуючий юрист · Україна</p>
-            <p class="mt-3 text-sm text-slate-700">
+            <h3 class="text-2xl font-bold text-white">Дмитро Глушко</h3>
+            <p class="text-slate-400 mt-1 text-lg">Практикуючий юрист · Україна</p>
+            <p class="mt-4 text-base text-slate-300 leading-relaxed">
               Затверджує юридичні шаблони бота, приймає заявки на консультацію
               з форми бота. Спеціалізації включають трудове, сімейне, військове
               та адміністративне право.
             </p>
             <a href="https://t.me/dmytrolawua"
-               class="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg border border-ua-blue text-ua-blue font-semibold hover:bg-ua-blue hover:text-white transition text-sm">
+               class="inline-flex items-center gap-2 mt-6 px-5 py-3 rounded-xl border-2 border-ua-blue text-ua-blue font-semibold hover:bg-ua-blue hover:text-white transition text-base">
               Написати у Telegram → @dmytrolawua
             </a>
           </div>
@@ -199,14 +202,14 @@
   </section>
 
   <!-- Дисклеймер -->
-  <section id="disclaimer" class="py-20 bg-white">
+  <section id="disclaimer" class="py-24 bg-slate-950">
     <div class="max-w-3xl mx-auto px-6">
-      <h2 class="text-3xl font-bold text-slate-900">⚠️ Важливо</h2>
+      <h2 class="text-4xl sm:text-5xl font-bold text-white">⚠️ Важливо</h2>
 
-      <div class="mt-8 space-y-4 text-slate-700 leading-relaxed">
+      <div class="mt-10 space-y-5 text-lg text-slate-300 leading-relaxed">
         <p>
           PravoHelpAI допомагає підготувати документи для типових ситуацій і
-          <strong>не є заміною індивідуальної юридичної консультації</strong>.
+          <strong class="text-white">не є заміною індивідуальної юридичної консультації</strong>.
         </p>
         <p>
           Згенерований документ має шаблонний характер і потребує адаптації під
@@ -226,28 +229,28 @@
   </section>
 
   <!-- Приватність -->
-  <section class="py-20 bg-slate-50">
+  <section class="py-24 bg-slate-900 border-y border-slate-800">
     <div class="max-w-3xl mx-auto px-6">
-      <h2 class="text-3xl font-bold text-slate-900">🔒 Що ми зберігаємо</h2>
+      <h2 class="text-4xl sm:text-5xl font-bold text-white">🔒 Що ми зберігаємо</h2>
 
-      <div class="mt-8 space-y-4 text-slate-700 leading-relaxed">
+      <div class="mt-10 space-y-5 text-lg text-slate-300 leading-relaxed">
         <p>
-          У базі даних бот зберігає <strong>лише факт використання</strong>:
+          У базі даних бот зберігає <strong class="text-white">лише факт використання</strong>:
           ваш Telegram-ID, обраний сценарій, дату.
         </p>
         <p>
           Поки сценарій не завершено — ваші відповіді (ПІБ, ІПН, адреса, телефон)
-          тимчасово зберігаються як <strong>чернетка</strong>, щоб ви могли продовжити,
+          тимчасово зберігаються як <strong class="text-white">чернетка</strong>, щоб ви могли продовжити,
           якщо щось перервалось. Чернетка автоматично видаляється:
         </p>
-        <ul class="list-disc list-inside ml-4 space-y-1 text-sm">
+        <ul class="list-disc list-inside ml-4 space-y-2 text-base">
           <li>після завершення сценарію або /cancel — одразу;</li>
           <li>в інших випадках — через 24 години.</li>
         </ul>
         <p>
           Згенерований DOCX-файл зникає з сервера через ~1 годину — встигніть завантажити.
         </p>
-        <p class="text-sm text-slate-500">
+        <p class="text-base text-slate-400">
           Дані не передаються третім особам. Telegram шифрує переписку клієнт-сервер.
         </p>
       </div>
@@ -255,41 +258,41 @@
   </section>
 
   <!-- Підтримати -->
-  <section class="py-20 bg-white">
+  <section class="py-24 bg-slate-950">
     <div class="max-w-3xl mx-auto px-6 text-center">
-      <h2 class="text-3xl font-bold text-slate-900">Підтримати проект</h2>
-      <p class="mt-4 text-slate-600 max-w-xl mx-auto">
+      <h2 class="text-4xl sm:text-5xl font-bold text-white">Підтримати проєкт</h2>
+      <p class="mt-5 text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed">
         Бот безкоштовний і без реклами. Якщо ми зекономили вам час або гроші —
         будемо вдячні за каву на хостинг та розробку нових сценаріїв.
       </p>
       <a href="https://send.monobank.ua/jar/23mRV6qChb"
-         class="inline-flex items-center gap-2 mt-8 px-8 py-3 rounded-lg bg-ua-yellow text-slate-900 font-semibold hover:bg-yellow-400 transition shadow-md">
+         class="inline-flex items-center gap-2 mt-10 px-10 py-4 rounded-xl bg-ua-yellow text-slate-900 text-lg font-bold hover:bg-yellow-400 transition shadow-lg shadow-yellow-900/40">
         ☕️ Скинути на каву (monobank)
       </a>
     </div>
   </section>
 
   <!-- Final CTA -->
-  <section class="py-16 bg-ua-blue text-white">
+  <section class="py-20 bg-gradient-to-br from-ua-blue to-blue-700 text-white">
     <div class="max-w-3xl mx-auto px-6 text-center">
-      <h2 class="text-3xl font-bold">Готові спробувати?</h2>
-      <p class="mt-3 text-blue-100">Без реєстрації. Безкоштовно. ~3 хвилини на документ.</p>
+      <h2 class="text-4xl sm:text-5xl font-bold">Готові спробувати?</h2>
+      <p class="mt-5 text-xl text-blue-100">Без реєстрації. Безкоштовно. ~3 хвилини на документ.</p>
       <a href="https://t.me/Dmytro_pravohelp_bot"
-         class="inline-flex items-center gap-2 mt-8 px-8 py-3 rounded-lg bg-white text-ua-blue font-semibold hover:bg-slate-100 transition shadow-md">
+         class="inline-flex items-center gap-2 mt-10 px-10 py-4 rounded-xl bg-white text-ua-blue text-lg font-bold hover:bg-slate-100 transition shadow-xl">
         📱 Відкрити PravoHelpAI у Telegram
       </a>
     </div>
   </section>
 
   <!-- Footer -->
-  <footer class="bg-slate-900 text-slate-400 py-10">
-    <div class="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm">
+  <footer class="bg-slate-950 text-slate-400 py-12 border-t border-slate-800">
+    <div class="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-base">
       <div class="flex items-center gap-2">
-        <span>⚖️</span>
-        <span class="font-semibold text-white">PravoHelpAI</span>
+        <span class="text-xl">⚖️</span>
+        <span class="font-bold text-white text-lg">PravoHelpAI</span>
         <span>· 2026</span>
       </div>
-      <p class="text-xs">
+      <p class="text-sm">
         Цей сайт не є публічною офертою. Інформація має ознайомчий характер.
       </p>
     </div>
