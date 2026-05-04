@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
-from decimal import Decimal
-from pathlib import Path
-
 import pytest
 
 from pravohelp.document.generator import render

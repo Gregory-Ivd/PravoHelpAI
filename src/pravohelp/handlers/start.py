@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -237,7 +237,7 @@ async def on_disclaimer_accept(update: Update, context: ContextTypes.DEFAULT_TYP
     with get_session() as session:
         user = session.query(User).filter_by(telegram_id=update.effective_user.id).one_or_none()
         if user is not None:
-            user.disclaimer_accepted_at = datetime.now(timezone.utc)
+            user.disclaimer_accepted_at = datetime.now(UTC)
 
     await query.edit_message_text(
         MAIN_MENU_TEXT, parse_mode="HTML", reply_markup=main_menu_keyboard()

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +41,7 @@ def render(template_name: str, context: dict[str, Any], *, telegram_id: int) -> 
     user_dir = OUTPUT_DIR / str(telegram_id)
     user_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     output_path = user_dir / f"{template_path.stem}_{timestamp}.docx"
 
     doc = DocxTemplate(str(template_path))

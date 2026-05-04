@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import UTC, datetime
 from enum import IntEnum
 from typing import Any
 
@@ -309,7 +308,7 @@ def _progress_label(state: int) -> str:
 
 async def _begin_fresh(query, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Початок з нуля. query — callback_query від кнопки entry або 'почати наново'."""
-    context.user_data[SCENARIO] = {"started_at": datetime.now(timezone.utc)}
+    context.user_data[SCENARIO] = {"started_at": datetime.now(UTC)}
     context.user_data.pop(f"{SCENARIO}_pending_resume", None)
 
     await query.edit_message_text(
@@ -865,7 +864,7 @@ def _record_completion(update: Update, *, plan: str, docs_count: int) -> None:
             status="completed",
             plan_chosen=plan,
             documents_generated=docs_count,
-            completed_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(UTC),
         )
         session.add(req)
 

@@ -23,7 +23,7 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
-    requests: Mapped[list["ScenarioRequest"]] = relationship(back_populates="user")
+    requests: Mapped[list[ScenarioRequest]] = relationship(back_populates="user")
 
 
 class ScenarioRequest(Base):

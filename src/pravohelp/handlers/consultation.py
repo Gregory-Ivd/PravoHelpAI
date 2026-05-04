@@ -7,7 +7,7 @@ context.user_data перед запуском (з consultation menu або з pr
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import IntEnum
 from typing import Any
 
@@ -86,7 +86,7 @@ async def start_consultation(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if field not in FIELD_LABELS:
         return ConversationHandler.END
 
-    context.user_data[CONSULT_KEY] = {"field": field, "started_at": datetime.now(timezone.utc)}
+    context.user_data[CONSULT_KEY] = {"field": field, "started_at": datetime.now(UTC)}
 
     label = FIELD_LABELS[field]
     if query.message is not None:
@@ -207,7 +207,7 @@ async def on_confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 f"<b>Телефон:</b> {data['phone']}\n"
                 f"<b>Telegram:</b> {user_link}\n\n"
                 f"<b>Опис ситуації:</b>\n{data['description']}\n\n"
-                f"<i>Заявка #{request_id} • {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</i>"
+                f"<i>Заявка #{request_id} • {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}</i>"
             )
             await context.bot.send_message(
                 chat_id=settings.lawyer_telegram_id,
@@ -289,7 +289,7 @@ def _mark_dispatched(request_id: int) -> None:
     with get_session() as session:
         req = session.get(ConsultationRequest, request_id)
         if req is not None:
-            req.dispatched_at = datetime.now(timezone.utc)
+            req.dispatched_at = datetime.now(UTC)
 
 
 # ============================================================================

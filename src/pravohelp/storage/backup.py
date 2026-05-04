@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import shutil
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -32,7 +32,7 @@ def backup_db() -> Path | None:
         return None
 
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     dst = BACKUP_DIR / f"db_{today}.db"
 
     shutil.copy2(src, dst)

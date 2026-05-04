@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import structlog
 from sqlalchemy import func, select
@@ -28,7 +28,7 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         log.info("stats_denied", telegram_id=update.effective_user.id)
         return  # тиша для не-адмінів — навмисно
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     day_ago = now - timedelta(hours=24)
     week_ago = now - timedelta(days=7)
 

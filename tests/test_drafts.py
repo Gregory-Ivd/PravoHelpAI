@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 
-from pravohelp.storage import drafts as drafts_module
 from pravohelp.storage.db import init_db
 from pravohelp.storage.drafts import cleanup_old_drafts, delete_draft, load_draft, save_draft
 from pravohelp.storage.models import ScenarioDraft
@@ -27,7 +26,7 @@ def _sample_data() -> dict:
         "period_from": (1, 2026),
         "period_to": (3, 2026),
         "last_payment_date": date(2025, 12, 15),
-        "started_at": datetime(2026, 5, 3, 10, 0, tzinfo=timezone.utc),
+        "started_at": datetime(2026, 5, 3, 10, 0, tzinfo=UTC),
     }
 
 
@@ -45,7 +44,7 @@ def test_save_then_load_roundtrip(db):
     assert restored["amount"] == Decimal("15000.50")
     assert restored["period_from"] == (1, 2026)
     assert restored["last_payment_date"] == date(2025, 12, 15)
-    assert restored["started_at"] == datetime(2026, 5, 3, 10, 0, tzinfo=timezone.utc)
+    assert restored["started_at"] == datetime(2026, 5, 3, 10, 0, tzinfo=UTC)
 
 
 def test_save_overwrites_existing(db):
@@ -86,7 +85,7 @@ def test_cleanup_removes_old_only(db):
     # Підкручуємо updated_at старшої чернетки
     with get_session() as session:
         old = session.query(ScenarioDraft).filter_by(telegram_id=111).one()
-        old.updated_at = datetime.now(timezone.utc) - timedelta(hours=48)
+        old.updated_at = datetime.now(UTC) - timedelta(hours=48)
 
     removed = cleanup_old_drafts(ttl_hours=24)
     assert removed == 1

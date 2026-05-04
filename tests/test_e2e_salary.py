@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -22,12 +23,12 @@ def env(tmp_path, monkeypatch):
     reset_all()
 
     # Створюємо юзера з прийнятим disclaimer (інакше cmd_start блокує)
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from pravohelp.storage.db import get_session
 
     with get_session() as s:
-        s.add(User(telegram_id=42, disclaimer_accepted_at=datetime.now(timezone.utc)))
+        s.add(User(telegram_id=42, disclaimer_accepted_at=datetime.now(UTC)))
 
     yield
 

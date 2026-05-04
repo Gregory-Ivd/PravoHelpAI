@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -98,7 +98,7 @@ def delete_draft(telegram_id: int, scenario: str) -> None:
 
 
 def cleanup_old_drafts(ttl_hours: int = DRAFT_TTL_HOURS) -> int:
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=ttl_hours)
+    cutoff = datetime.now(UTC) - timedelta(hours=ttl_hours)
     with get_session() as session:
         result = session.execute(
             delete(ScenarioDraft).where(ScenarioDraft.updated_at < cutoff)
