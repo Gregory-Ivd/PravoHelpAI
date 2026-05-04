@@ -1,5 +1,7 @@
 # PravoHelpAI
 
+[![CI](https://github.com/Gregory-Ivd/PravoHelpAI/actions/workflows/ci.yml/badge.svg)](https://github.com/Gregory-Ivd/PravoHelpAI/actions/workflows/ci.yml)
+
 Telegram-бот — генератор юридичних шаблонів для типових ситуацій в Україні.
 
 > ⚠️ **Це генератор шаблонів, а не юридична консультація.** Перед поданням документів у держоргани або суд — рекомендуємо перевірку у фахового юриста.
