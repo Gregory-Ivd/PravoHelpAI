@@ -12,33 +12,85 @@ from pravohelp.storage.models import User
 log = structlog.get_logger(__name__)
 
 
+MONOBANK_URL = "https://send.monobank.ua/jar/23mRV6qChb"
+RADA_URL = "https://www.rada.gov.ua/"
+
+
 DISCLAIMER = (
     "⚖️ <b>PravoHelpAI — генератор юридичних шаблонів</b>\n\n"
-    "Бот допомагає підготувати документ для типових ситуацій. "
-    "Він <b>не замінює юридичну консультацію</b>.\n\n"
-    "<b>Що важливо знати:</b>\n"
-    "• Згенерований документ — це <b>шаблон</b>, який потребує перевірки під твою конкретну ситуацію.\n"
-    "• Перед поданням у держоргани або суд рекомендуємо перевірку юристом.\n"
-    "• Розробник не несе відповідальності за результати використання документа.\n"
-    "• Військове законодавство України оновлюється часто — для питань мобілізації перевір актуальність на rada.gov.ua.\n\n"
-    "Натиснувши «Згоден», ти підтверджуєш, що прочитав/-ла і розумієш ці умови."
+    "Бот допомагає підготувати документи для типових ситуацій і "
+    "<b>не є заміною індивідуальної юридичної консультації</b>.\n\n"
+    "<b>Важливо:</b> Згенерований документ має шаблонний характер і "
+    "потребує адаптації під конкретну ситуацію користувача. Перед поданням "
+    "до державних органів або суду рекомендується перевірка юристом. "
+    "Використання документа здійснюється користувачем на власний ризик. "
+    "Розробник не несе відповідальності за наслідки використання згенерованих "
+    "матеріалів. Законодавство України, зокрема у сфері військового обовʼязку "
+    "та мобілізації, може змінюватися — актуальність інформації рекомендується "
+    f'перевіряти на сайті <a href="{RADA_URL}">Верховної Ради України</a>.\n\n'
+    "<b>Підтвердження:</b> Натискаючи «Згоден», ви підтверджуєте, що "
+    "ознайомилися з умовами та приймаєте їх."
 )
 
 
-MAIN_MENU_TEXT = (
-    "Обери ситуацію:\n\n"
-    "💰 <b>Невиплата зарплати</b> — досудова претензія, скарга до Держпраці, позов до суду.\n"
-    "🚧 Інші сценарії (повістка, штраф ПДР) — у розробці."
+MAIN_MENU_TEXT = "Оберіть, що вам потрібно 👇"
+
+SCENARIOS_MENU_TEXT = (
+    "Я допоможу підготувати документ для типової ситуації.\n\n"
+    "<b>Оберіть тип документа 👇</b>"
+)
+
+CONSULT_PLACEHOLDER_TEXT = (
+    "👩‍⚖️ <b>Консультація юриста</b>\n\n"
+    "Тут буде список галузей права і кнопки звʼязку з юристом. "
+    "Розділ у розробці — найближчим часом запрацює повністю."
 )
 
 
-def _main_menu_keyboard() -> InlineKeyboardMarkup:
+# ============================================================================
+# Клавіатури
+# ============================================================================
+
+
+def _btn_consult() -> InlineKeyboardButton:
+    return InlineKeyboardButton("👩‍⚖️ Консультація юриста", callback_data="main:consult")
+
+
+def _btn_donate() -> InlineKeyboardButton:
+    return InlineKeyboardButton("☕️ Підтримати канал", url=MONOBANK_URL)
+
+
+def _btn_back_main() -> InlineKeyboardButton:
+    return InlineKeyboardButton("🔙 До головного меню", callback_data="main:home")
+
+
+def main_menu_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("📄 Скласти документ", callback_data="main:scenarios")],
+            [_btn_consult()],
+            [_btn_donate()],
+        ]
+    )
+
+
+def scenarios_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("💰 Невиплата зарплати", callback_data="scenario:salary")],
-            [InlineKeyboardButton("ℹ️ Про бота", callback_data="info:about")],
+            [_btn_consult()],
+            [_btn_back_main()],
         ]
     )
+
+
+def consult_placeholder_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[_btn_back_main()]])
+
+
+# ============================================================================
+# Команди
+# ============================================================================
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -57,16 +109,20 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         already_accepted = user.disclaimer_accepted_at is not None
 
     if already_accepted:
-        await update.message.reply_html(MAIN_MENU_TEXT, reply_markup=_main_menu_keyboard())
+        await update.message.reply_html(
+            MAIN_MENU_TEXT, reply_markup=main_menu_keyboard()
+        )
         return
 
     keyboard = InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("✅ Згоден, продовжити", callback_data="disclaimer:accept")],
-            [InlineKeyboardButton("❌ Відмовитись", callback_data="disclaimer:decline")],
+            [InlineKeyboardButton("✅ Згоден", callback_data="disclaimer:accept")],
+            [InlineKeyboardButton("❌ Не згоден", callback_data="disclaimer:decline")],
         ]
     )
-    await update.message.reply_html(DISCLAIMER, reply_markup=keyboard)
+    await update.message.reply_html(
+        DISCLAIMER, reply_markup=keyboard, disable_web_page_preview=True
+    )
 
 
 async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -83,7 +139,7 @@ async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    await update.message.reply_html(MAIN_MENU_TEXT, reply_markup=_main_menu_keyboard())
+    await update.message.reply_html(MAIN_MENU_TEXT, reply_markup=main_menu_keyboard())
 
 
 async def on_disclaimer_accept(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -98,7 +154,7 @@ async def on_disclaimer_accept(update: Update, context: ContextTypes.DEFAULT_TYP
             user.disclaimer_accepted_at = datetime.now(timezone.utc)
 
     await query.edit_message_text(
-        MAIN_MENU_TEXT, parse_mode="HTML", reply_markup=_main_menu_keyboard()
+        MAIN_MENU_TEXT, parse_mode="HTML", reply_markup=main_menu_keyboard()
     )
 
 
@@ -113,23 +169,46 @@ async def on_disclaimer_decline(update: Update, context: ContextTypes.DEFAULT_TY
     )
 
 
-async def on_about(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+# ============================================================================
+# Навігація між меню
+# ============================================================================
+
+
+async def on_main_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     if query is None:
         return
     await query.answer()
     await query.edit_message_text(
-        "<b>PravoHelpAI</b> — Telegram-бот для підготовки юридичних документів "
-        "по поширених ситуаціях в Україні.\n\n"
-        "Поки доступний один сценарій: <b>невиплата зарплати</b>. "
-        "Скоро додамо «повістка» і «штраф ПДР».\n\n"
-        "Команди:\n"
-        "/start — головне меню\n"
-        "/help — допомога\n"
-        "/cancel — вийти з поточного сценарію\n\n"
-        "Натисни /start щоб обрати сценарій.",
-        parse_mode="HTML",
+        MAIN_MENU_TEXT, parse_mode="HTML", reply_markup=main_menu_keyboard()
     )
+
+
+async def on_main_scenarios(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if query is None:
+        return
+    await query.answer()
+    await query.edit_message_text(
+        SCENARIOS_MENU_TEXT, parse_mode="HTML", reply_markup=scenarios_menu_keyboard()
+    )
+
+
+async def on_main_consult(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if query is None:
+        return
+    await query.answer()
+    await query.edit_message_text(
+        CONSULT_PLACEHOLDER_TEXT,
+        parse_mode="HTML",
+        reply_markup=consult_placeholder_keyboard(),
+    )
+
+
+# ============================================================================
+# Інші
+# ============================================================================
 
 
 async def cmd_cancel_global(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -137,7 +216,7 @@ async def cmd_cancel_global(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if update.message is None:
         return
     await update.message.reply_text(
-        "Зараз ти не в сценарії — нема чого скасовувати. Натисни /menu щоб обрати ситуацію."
+        "Зараз ти не в сценарії — нема чого скасовувати. Натисни /menu щоб відкрити меню."
     )
 
 
@@ -147,20 +226,19 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_html(
         "<b>Як користуватись ботом</b>\n\n"
         "1. /start — прийняти умови (один раз).\n"
-        "2. /menu — обрати ситуацію.\n"
-        "3. Бот ставить уточнюючі питання — відповідай по черзі.\n"
-        "4. У кінці отримаєш готовий документ (DOCX) і чек-лист дій.\n"
-        "5. Опціонально — звернись за консультацією до юриста-партнера.\n\n"
+        "2. /menu — головне меню.\n"
+        "3. Обери «📄 Скласти документ» → тип документа → відповідай на питання.\n"
+        "4. У кінці перевір дані, отримай DOCX і чек-лист.\n"
+        "5. Опціонально — звернись за консультацією до юриста.\n\n"
         "<b>Команди</b>\n"
         "/start — перший запуск і дисклеймер\n"
-        "/menu — головне меню зі сценаріями\n"
+        "/menu — головне меню\n"
         "/cancel — вийти з поточного сценарію\n"
         "/help — це повідомлення\n\n"
         "<b>FAQ</b>\n\n"
         "<b>Помилився у відповіді — як виправити?</b>\n"
-        "Введи /cancel і запусти сценарій з /menu заново. Покрокового бектреку поки немає, "
-        "але якщо просто перервався (закрив чат) — наступного разу бот запропонує "
-        "продовжити з того ж місця.\n\n"
+        "Дій до кінця анкети — на екрані «Перевір дані» можна виправити будь-яке поле, "
+        "не починаючи спочатку. Або /cancel і заново.\n\n"
         "<b>Чи зберігаються мої дані?</b>\n"
         "У БД назавжди — лише факт використання (telegram_id, обраний сценарій, дата). "
         "Поки сценарій не завершено — твої відповіді (ПІБ, ІПН, адреса, телефон) "
@@ -170,11 +248,11 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "• в інших випадках — через 24 години.\n"
         "Згенерований DOCX зникає з сервера через ~1 годину — встигни завантажити.\n\n"
         "<b>Документ — це готовий папір?</b>\n"
-        "Це шаблон. Перед поданням у держоргани/суд перевір під свою ситуацію — "
+        "Ні, це шаблон. Перед поданням у держоргани/суд перевір під свою ситуацію — "
         "або сам, або з юристом. Бот не несе відповідальності за результат.\n\n"
         "<b>Як отримати консультацію юриста?</b>\n"
-        "Після завершення сценарію бот покаже контакти юриста-партнера. "
-        "Звертатись напряму — умови узгоджуєш з юристом.\n\n"
+        "Натисни «👩‍⚖️ Консультація юриста» в головному меню — там вибір галузі права "
+        "і контакти юриста-партнера.\n\n"
         "<b>Чи безпечно вводити персональні дані в Telegram?</b>\n"
         "Telegram шифрує переписку клієнт-сервер. Бот не передає твої дані третім сторонам. "
         "Якщо параноя — введи мінімум обовʼязкового і доповни вручну в DOCX."

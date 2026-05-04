@@ -23,15 +23,21 @@ warnings.filterwarnings(
 from pravohelp.config import load_settings
 from pravohelp.document.generator import cleanup_old_documents
 from pravohelp.handlers.admin import cmd_stats
-from pravohelp.handlers.salary import build_salary_conversation
+from pravohelp.handlers.salary import (
+    build_salary_conversation,
+    on_post_edit_hint,
+    on_post_lawyer_review,
+)
 from pravohelp.handlers.start import (
     cmd_cancel_global,
     cmd_help,
     cmd_menu,
     cmd_start,
-    on_about,
     on_disclaimer_accept,
     on_disclaimer_decline,
+    on_main_consult,
+    on_main_home,
+    on_main_scenarios,
 )
 from pravohelp.storage.backup import backup_db, cleanup_old_backups
 from pravohelp.storage.db import init_db
@@ -144,7 +150,11 @@ def build_application(token: str) -> Application:
 
     app.add_handler(CallbackQueryHandler(on_disclaimer_accept, pattern=r"^disclaimer:accept$"))
     app.add_handler(CallbackQueryHandler(on_disclaimer_decline, pattern=r"^disclaimer:decline$"))
-    app.add_handler(CallbackQueryHandler(on_about, pattern=r"^info:about$"))
+    app.add_handler(CallbackQueryHandler(on_main_home, pattern=r"^main:home$"))
+    app.add_handler(CallbackQueryHandler(on_main_scenarios, pattern=r"^main:scenarios$"))
+    app.add_handler(CallbackQueryHandler(on_main_consult, pattern=r"^main:consult$"))
+    app.add_handler(CallbackQueryHandler(on_post_lawyer_review, pattern=r"^post:lawyer_review$"))
+    app.add_handler(CallbackQueryHandler(on_post_edit_hint, pattern=r"^post:edit_hint$"))
 
     if app.job_queue is not None:
         app.job_queue.run_repeating(

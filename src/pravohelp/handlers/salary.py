@@ -737,7 +737,7 @@ async def on_plan_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         await query.message.reply_html(CHECKLISTS[plan])
 
-    await _send_lawyer_offer(update, context)
+    await _send_post_generation_card(update, context)
     _record_completion(update, plan=plan, docs_count=docs_count)
 
     delete_draft(update.effective_user.id, SCENARIO)
@@ -754,27 +754,48 @@ def _plan_label(plan: str) -> str:
     }.get(plan, plan)
 
 
-async def _send_lawyer_offer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    settings = load_settings()
+async def _send_post_generation_card(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     msg = update.callback_query.message if update.callback_query else update.message
     if msg is None:
         return
 
-    contact_lines = []
-    if settings.lawyer_telegram:
-        contact_lines.append(f"Telegram: {settings.lawyer_telegram}")
-    if settings.lawyer_phone:
-        contact_lines.append(f"Телефон: {settings.lawyer_phone}")
-    contact_block = "\n".join(contact_lines) if contact_lines else "(контакти зʼявляться скоро)"
-
     text = (
-        "💼 <b>Хочеш, щоб документ і твою ситуацію перевірив юрист?</b>\n\n"
-        f"Можемо звʼязати з <b>{settings.lawyer_name}</b> — практикуючий юрист.\n\n"
-        f"{contact_block}\n\n"
-        "Юрист допоможе адаптувати шаблон під твою конкретну ситуацію, "
-        "перевірити підстави і супроводжувати справу далі."
+        "📄 <b>Документ сформовано</b>\n\n"
+        "⚠️ Зверніть увагу: документ має шаблонний характер і не враховує всіх "
+        "індивідуальних обставин. У більшості випадків для досягнення результату "
+        "потрібна адаптація документа під конкретну ситуацію. Ви можете втратити час "
+        "або кошти, якщо діяти без урахування усіх обставин."
     )
-    await msg.reply_html(text)
+    keyboard = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("👩‍⚖️ Перевірити документ юристом", callback_data="post:lawyer_review")],
+            [InlineKeyboardButton("📩 Отримати консультацію", callback_data="main:consult")],
+            [InlineKeyboardButton("✍️ Відредагувати документ", callback_data="post:edit_hint")],
+            [InlineKeyboardButton("🔙 До головного меню", callback_data="main:home")],
+        ]
+    )
+    await msg.reply_html(text, reply_markup=keyboard)
+
+
+async def on_post_lawyer_review(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Аналог 'Отримати консультацію' для post-generation — пізніше можна різнити тексти."""
+    from pravohelp.handlers.start import on_main_consult
+    await on_main_consult(update, context)
+
+
+async def on_post_edit_hint(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if query is None or query.message is None:
+        return
+    await query.answer()
+    await query.message.reply_html(
+        "✍️ <b>Як відредагувати документ</b>\n\n"
+        "1. Завантаж DOCX-файл, який щойно надіслав бот.\n"
+        "2. Відкрий його у Microsoft Word, LibreOffice Writer або Google Docs.\n"
+        "3. Виправ потрібні поля під свою ситуацію (дати, цифри, формулювання).\n"
+        "4. Збережи і використовуй за призначенням.\n\n"
+        "💡 Якщо не впевнений, що саме потрібно міняти — краще звернутись за консультацією."
+    )
 
 
 def _record_completion(update: Update, *, plan: str, docs_count: int) -> None:
