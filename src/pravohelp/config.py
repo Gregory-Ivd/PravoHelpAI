@@ -19,6 +19,7 @@ class Settings:
     lawyer_telegram: str
     lawyer_phone: str
     lawyer_specialization: str
+    lawyer_telegram_id: int | None
     admin_telegram_ids: tuple[int, ...]
     max_scenarios_per_hour: int
 
@@ -36,14 +37,18 @@ def load_settings() -> Settings:
             "TELEGRAM_BOT_TOKEN не задано. Скопіюй .env.example → .env і встав токен від @BotFather."
         )
 
+    raw_lawyer_id = os.getenv("LAWYER_TELEGRAM_ID", "").strip()
+    lawyer_id = int(raw_lawyer_id) if raw_lawyer_id else None
+
     return Settings(
         telegram_bot_token=token,
         database_url=os.getenv("DATABASE_URL", "sqlite:///data/pravohelp.db"),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         lawyer_name=os.getenv("LAWYER_NAME", "Дмитро Глушко"),
-        lawyer_telegram=os.getenv("LAWYER_TELEGRAM", ""),
+        lawyer_telegram=os.getenv("LAWYER_TELEGRAM", "@dmytrolawua"),
         lawyer_phone=os.getenv("LAWYER_PHONE", ""),
         lawyer_specialization=os.getenv("LAWYER_SPECIALIZATION", ""),
+        lawyer_telegram_id=lawyer_id,
         admin_telegram_ids=_parse_admin_ids(os.getenv("ADMIN_TELEGRAM_IDS", "")),
         max_scenarios_per_hour=int(os.getenv("MAX_SCENARIOS_PER_HOUR", "5")),
     )

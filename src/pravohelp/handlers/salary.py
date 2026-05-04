@@ -63,6 +63,7 @@ class S(IntEnum):
     RESUME_PROMPT = 112
     PREVIEW = 113
     EDIT_FIELD_CHOICE = 114
+    PRE_GENERATE = 115
 
 
 SCENARIO = "salary"
@@ -564,12 +565,65 @@ async def _send_plan_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def on_preview_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
+    if query is None or query.message is None:
+        return ConversationHandler.END
+    await query.answer()
+
+    text = (
+        "⚠️ <b>Важливо:</b> у подібних справах можуть виникати нюанси, які впливають "
+        "на результат (позиція другої сторони, докази, виконання рішення суду тощо).\n\n"
+        "<b>Оберіть, як діяти далі 👇</b>"
+    )
+    keyboard = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("📄 Отримати шаблон документа", callback_data="pregen:template")],
+            [InlineKeyboardButton("👩‍⚖️ Розібрати ситуацію з юристом", callback_data="pregen:lawyer")],
+        ]
+    )
+    await query.message.reply_html(text, reply_markup=keyboard)
+    _persist(update, context, S.PRE_GENERATE)
+    return S.PRE_GENERATE
+
+
+async def on_pregen_template(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
     if query is None:
         return ConversationHandler.END
     await query.answer()
     await _send_plan_choice(update, context)
     _persist(update, context, S.PLAN_CHOICE)
     return S.PLAN_CHOICE
+
+
+async def on_pregen_lawyer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Користувач хоче до юриста. Вийти з salary FSM і пустити форму з полем 'labor'."""
+    query = update.callback_query
+    if query is None or update.effective_user is None:
+        return ConversationHandler.END
+    await query.answer()
+
+    # Чистимо salary state — більше не повертаємось до зарплати, юзер обрав консультацію.
+    if context.user_data is not None:
+        context.user_data.pop(SCENARIO, None)
+        context.user_data.pop(EDITING_KEY, None)
+    delete_draft(update.effective_user.id, SCENARIO)
+
+    # Імітуємо вхід у consultation FSM. Робимо це через CallbackQuery з даними "consult_start:labor"
+    # — простіше показати повідомлення з кнопкою, яку юзер натискає сам:
+    if query.message is not None:
+        keyboard = InlineKeyboardMarkup(
+            [
+                [InlineKeyboardButton("📩 Записатися — Трудове право",
+                                      callback_data="consult_start:labor")],
+                [InlineKeyboardButton("🔙 До головного меню", callback_data="main:home")],
+            ]
+        )
+        await query.message.reply_html(
+            "👩‍⚖️ Ваші дані з анкети не передаються — заявка для юриста зберігає тільки те, "
+            "що ви введете нижче. Натисніть, щоб запустити форму запису.",
+            reply_markup=keyboard,
+        )
+    return ConversationHandler.END
 
 
 async def on_preview_edit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -869,6 +923,10 @@ def build_salary_conversation() -> ConversationHandler:
             ],
             S.EDIT_FIELD_CHOICE: [
                 CallbackQueryHandler(on_edit_field, pattern=r"^edit_field:"),
+            ],
+            S.PRE_GENERATE: [
+                CallbackQueryHandler(on_pregen_template, pattern=r"^pregen:template$"),
+                CallbackQueryHandler(on_pregen_lawyer, pattern=r"^pregen:lawyer$"),
             ],
             S.PLAN_CHOICE: [CallbackQueryHandler(on_plan_choice, pattern=r"^salary_plan:")],
         },

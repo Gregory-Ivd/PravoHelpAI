@@ -48,6 +48,25 @@ class ScenarioRequest(Base):
     user: Mapped[User] = relationship(back_populates="requests")
 
 
+class ConsultationRequest(Base):
+    """Заявка на консультацію юриста — зберігаємо для аудиту і повторного push, якщо first failed."""
+
+    __tablename__ = "consultation_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(index=True)
+    name: Mapped[str] = mapped_column(String(150))
+    phone: Mapped[str] = mapped_column(String(32))
+    field: Mapped[str] = mapped_column(String(64))  # код галузі права
+    description: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    dispatched_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
 class ScenarioDraft(Base):
     """Чернетка незавершеного сценарію — містить PII, TTL 24 год."""
 

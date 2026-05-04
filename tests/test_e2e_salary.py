@@ -128,8 +128,12 @@ async def test_full_salary_flow_through_preview(env):
     assert data["employer_name"] == "ТОВ Тест"
     assert data["user_phone"] == "+380501234567"
 
-    # Підтвердити → переходимо в PLAN_CHOICE
+    # Підтвердити preview → ідемо в PRE_GENERATE (попередження + 2 опції)
     state = await salary.on_preview_confirm(_make_callback_update("preview:confirm"), ctx)
+    assert state == S.PRE_GENERATE
+
+    # Обираємо «Отримати шаблон» → переходимо в PLAN_CHOICE
+    state = await salary.on_pregen_template(_make_callback_update("pregen:template"), ctx)
     assert state == S.PLAN_CHOICE
 
 

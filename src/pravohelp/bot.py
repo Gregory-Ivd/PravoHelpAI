@@ -23,6 +23,7 @@ warnings.filterwarnings(
 from pravohelp.config import load_settings
 from pravohelp.document.generator import cleanup_old_documents
 from pravohelp.handlers.admin import cmd_stats
+from pravohelp.handlers.consultation import build_consultation_conversation
 from pravohelp.handlers.salary import (
     build_salary_conversation,
     on_post_edit_hint,
@@ -33,6 +34,7 @@ from pravohelp.handlers.start import (
     cmd_help,
     cmd_menu,
     cmd_start,
+    on_consult_field,
     on_disclaimer_accept,
     on_disclaimer_decline,
     on_main_consult,
@@ -136,9 +138,9 @@ async def _post_init(app: Application) -> None:
 def build_application(token: str) -> Application:
     app = Application.builder().token(token).post_init(_post_init).build()
 
-    # ConversationHandler має бути зареєстрований ПЕРЕД одиничними CallbackQueryHandler-ами,
-    # щоб entry_point на "scenario:salary" зловив подію раніше за загальний список.
+    # ConversationHandler-и реєструються ПЕРЕД одиничними CallbackQueryHandler-ами.
     app.add_handler(build_salary_conversation())
+    app.add_handler(build_consultation_conversation())
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("menu", cmd_menu))
@@ -153,6 +155,7 @@ def build_application(token: str) -> Application:
     app.add_handler(CallbackQueryHandler(on_main_home, pattern=r"^main:home$"))
     app.add_handler(CallbackQueryHandler(on_main_scenarios, pattern=r"^main:scenarios$"))
     app.add_handler(CallbackQueryHandler(on_main_consult, pattern=r"^main:consult$"))
+    app.add_handler(CallbackQueryHandler(on_consult_field, pattern=r"^consult_field:"))
     app.add_handler(CallbackQueryHandler(on_post_lawyer_review, pattern=r"^post:lawyer_review$"))
     app.add_handler(CallbackQueryHandler(on_post_edit_hint, pattern=r"^post:edit_hint$"))
 

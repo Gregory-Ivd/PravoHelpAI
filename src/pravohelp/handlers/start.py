@@ -14,6 +14,7 @@ log = structlog.get_logger(__name__)
 
 MONOBANK_URL = "https://send.monobank.ua/jar/23mRV6qChb"
 RADA_URL = "https://www.rada.gov.ua/"
+LAWYER_TG_USERNAME = "dmytrolawua"  # без @, для t.me/<username>
 
 
 DISCLAIMER = (
@@ -40,11 +41,81 @@ SCENARIOS_MENU_TEXT = (
     "<b>Оберіть тип документа 👇</b>"
 )
 
-CONSULT_PLACEHOLDER_TEXT = (
+CONSULT_INTRO_TEXT = (
     "👩‍⚖️ <b>Консультація юриста</b>\n\n"
-    "Тут буде список галузей права і кнопки звʼязку з юристом. "
-    "Розділ у розробці — найближчим часом запрацює повністю."
+    "Ви можете отримати первинну юридичну консультацію з аналізом вашої ситуації "
+    "та чіткими рекомендаціями щодо подальших дій у найкоротші строки.\n\n"
+    "Оперативний аналіз дозволяє своєчасно врахувати важливі обставини та обрати "
+    "правильний напрям дій, мінімізуючи ризик помилок і втрати часу на початковому "
+    "етапі. Це допоможе оцінити перспективи справи та визначити оптимальну стратегію "
+    "дій з урахуванням ваших інтересів.\n\n"
+    "<b>🔹 Умови</b>\n"
+    "Первинна консультація передбачає оцінку ситуації. "
+    "Детальний аналіз, підготовка документів та супровід здійснюються на платній основі.\n\n"
+    "<b>Оберіть галузь права 👇</b>"
 )
+
+
+CONSULT_FIELDS: list[tuple[str, str, str, str]] = [
+    (
+        "family",
+        "⚖️ Сімейне право",
+        "⚖️ <b>Сімейне право</b>",
+        "Розірвання шлюбу, поділ майна, аліменти та пеня, визначення місця проживання "
+        "дитини, графік спілкування, позбавлення батьківських прав, виїзд дітей за кордон.",
+    ),
+    (
+        "labor",
+        "💼 Трудове право",
+        "💼 <b>Трудове право</b>",
+        "Заборгованість по заробітній платі, трудові спори з роботодавцем, "
+        "підготовка звернень та позовів.",
+    ),
+    (
+        "military",
+        "🪖 Військове право",
+        "🪖 <b>Військове право</b>",
+        "Консультації щодо мобілізації, повісток, супровід у типових ситуаціях.",
+    ),
+    (
+        "medical",
+        "🏥 Медичне та соціальне право",
+        "🏥 <b>Медичне та соціальне право</b>",
+        "Спори з медичними установами, захист прав пацієнтів, оскарження рішень "
+        "щодо встановлення групи інвалідності, супровід у МСЕК.",
+    ),
+    (
+        "tax",
+        "💰 Податкове право",
+        "💰 <b>Податкове право</b>",
+        "Консультації щодо податкових зобовʼязань та спорів.",
+    ),
+    (
+        "inheritance",
+        "🏠 Спадкове право",
+        "🏠 <b>Спадкове право</b>",
+        "Оформлення спадщини, вирішення спорів між спадкоємцями.",
+    ),
+    (
+        "international",
+        "🌍 Міжнародні питання",
+        "🌍 <b>Міжнародні та документи за кордоном</b>",
+        "Підтвердження документів за кордоном, складання заяв та скарг "
+        "(у тому числі в Польщі), правові питання між Україною та іншими країнами.",
+    ),
+    (
+        "admin",
+        "🚗 Адміністративне (ПДР)",
+        "🚗 <b>Адміністративне право (ПДР)</b>",
+        "Штрафи, оскарження постанов, підготовка заяв та скарг.",
+    ),
+    (
+        "other",
+        "📄 Інші питання",
+        "📄 <b>Інші питання</b>",
+        "Відновлення документів, підготовка індивідуальних заяв та звернень.",
+    ),
+]
 
 
 # ============================================================================
@@ -84,8 +155,23 @@ def scenarios_menu_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def consult_placeholder_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[_btn_back_main()]])
+def consult_menu_keyboard() -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(label, callback_data=f"consult_field:{key}")]
+            for key, label, _, _ in CONSULT_FIELDS]
+    rows.append([_btn_back_main()])
+    return InlineKeyboardMarkup(rows)
+
+
+def consult_field_keyboard(field_key: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("📩 Написати юристу", url=f"https://t.me/{LAWYER_TG_USERNAME}")],
+            [InlineKeyboardButton("📅 Записатися на консультацію",
+                                  callback_data=f"consult_start:{field_key}")],
+            [InlineKeyboardButton("🔙 До галузей", callback_data="main:consult")],
+            [_btn_back_main()],
+        ]
+    )
 
 
 # ============================================================================
@@ -199,11 +285,40 @@ async def on_main_consult(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if query is None:
         return
     await query.answer()
-    await query.edit_message_text(
-        CONSULT_PLACEHOLDER_TEXT,
-        parse_mode="HTML",
-        reply_markup=consult_placeholder_keyboard(),
-    )
+    # edit_message_text — якщо джерело edit-able (інлайн-callback). Інакше — нове повідомлення.
+    try:
+        await query.edit_message_text(
+            CONSULT_INTRO_TEXT, parse_mode="HTML", reply_markup=consult_menu_keyboard()
+        )
+    except Exception:
+        if query.message is not None:
+            await query.message.reply_html(
+                CONSULT_INTRO_TEXT, reply_markup=consult_menu_keyboard()
+            )
+
+
+async def on_consult_field(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if query is None or query.data is None:
+        return
+    await query.answer()
+
+    field_key = query.data.split(":", 1)[1]
+    entry = next((e for e in CONSULT_FIELDS if e[0] == field_key), None)
+    if entry is None:
+        return
+    _, _, title, description = entry
+
+    text = f"{title}\n\n{description}"
+    try:
+        await query.edit_message_text(
+            text, parse_mode="HTML", reply_markup=consult_field_keyboard(field_key)
+        )
+    except Exception:
+        if query.message is not None:
+            await query.message.reply_html(
+                text, reply_markup=consult_field_keyboard(field_key)
+            )
 
 
 # ============================================================================
